@@ -1,0 +1,8 @@
+# Config file
+Settings/config.json
+
+# Precomile folders
+.precomp/
+
+# Database folder
+DB/
