@@ -1,30 +1,37 @@
 #!/usr/bin/perl6
 
 use v6;
+use JSON::Tiny;
 
 class Entity
 {
-    has @!errors;
+    has %!response = %(
+        data    => '',
+        errors  => []
+    );
 
     method hasErrors ()
     {
-        return ?@!errors;
+        return ?%!response<errors>;
     }
 
     multi method addError (Array \errors)
     {
-        return if !errors.elems;
-        @!errors.append: errors;
+        %!response<errors>.append: errors.flat if ?errors.elems;
     }
 
     multi method addError (Str \error)
     {
-        return if ?error == '';
-        @!errors.push: error;
+        %!response<errors>.push: error if ?error !== '';
     }
 
     method getErrors ()
     {
-        return @!errors;
+        return %!response<errors>;
+    }
+
+    method dispatch ()
+    {
+        say to-json(%!response);
     }
 }

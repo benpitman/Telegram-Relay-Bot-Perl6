@@ -2,19 +2,27 @@
 
 use v6;
 use LibCurl::HTTP; # requires libcurl4-openssl-dev
+use Entity::Entity;
 
 class ApiHttpService
 {
-    has $http = LibCurl::HTTP.new;
+    has $!http = LibCurl::HTTP.new;
+    has $!entity = Entity.new;
 
-    method connect ()
+    method post (Str \url, Str \post = '')
     {
-        my %a = %(user => 'name', pass => 'word');
+        try {
+            $!http.POST(url, post).perform;
 
-        ~%a
-            .subst( /\n/, '&', :g )
-            .subst( /\h+/, '=', :g )
-            .say;
-        # say S:g[\h+] = '=' with ( S[\n] = '&' with ~%a );
+            CATCH {
+                when X::LibCurl {
+                    $!entity.addError("$_.Int() : $_");
+                    $!entity.addError($!http.error);
+                    return $!entity;
+                }
+            }
+        }
+
+        return $!entity;
     }
 }
