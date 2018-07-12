@@ -6,9 +6,19 @@ use JSON::Tiny;
 class Entity
 {
     has %!response = %(
-        data    => '',
+        data    => Any,
         errors  => []
     );
+
+    method setData (Any \data)
+    {
+        %!response<data> = data;
+    }
+
+    method getData ()
+    {
+        return %!response<data>;
+    }
 
     method hasErrors ()
     {

@@ -13,6 +13,7 @@ sub MAIN ()
     $apiService.=new(apiConfig => %config<bot><api>);
 
     my $apiEntity = $apiService.getUpdates();
+    # my $apiEntity = $apiService.sendMessage("1", "hello");
 
     $apiEntity.dispatch() if $apiEntity.hasErrors();
 
