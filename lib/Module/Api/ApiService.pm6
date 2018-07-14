@@ -1,18 +1,20 @@
 #!/usr/bin/perl6
 
 use v6;
-use Api::ApiDataService;
-use Api::ApiFileService;
-use Api::ApiHttpService;
-# use Api::ApiTextService;
-use Entity::Entity;
+
+need Module::Api::ApiDataService;
+need Module::Api::ApiDBService;
+need Module::Api::ApiHttpService;
+# need Api::ApiTextService;
+need Module::Message::MessageService;
+need Entity::Entity;
 
 class ApiService
 {
     has %.apiConfig;
 
     has $!apiDataService = ApiDataService.new;
-    has $!apiFileService = ApiFileService.new;
+    has $!apiDBService = ApiDBService.new;
     has $!apiHttpService = ApiHttpService.new;
     # has $!apiTextService = ApiTextService.new;
 
@@ -26,10 +28,21 @@ class ApiService
         $!url ~= "/getUpdates";
 
         my Entity $httpEntity = $!apiHttpService.post($!url);
-        $!entity.addError($httpEntity.getErrors()) if $httpEntity.hasErrors();
+        if $httpEntity.hasErrors() {
+            $!entity.addError($httpEntity.getErrors());
+            return $!entity;
+        }
 
         my Entity $dataEntity = $!apiDataService.parseResponse($httpEntity.getData());
-        $!entity.addError($dataEntity.getErrors()) if $dataEntity.hasErrors();
+        if $dataEntity.hasErrors() {
+            $!entity.addError($dataEntity.getErrors());
+            return $!entity;
+        }
+
+        #TODO check if message exists
+
+        my $messageService = MessageService.new;
+        $messageService.insertNew();
 
         return $!entity;
     }

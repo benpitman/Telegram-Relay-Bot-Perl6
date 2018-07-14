@@ -2,9 +2,11 @@
 
 use v6;
 
-class ApiFileService
+class ApiDBService
 {
-    has $!dir = 'DB/';
+    has $!db = 'DB/';
+
+    submethod BUILD (:$!db) {}
 
     method getUpdateId ()
     {

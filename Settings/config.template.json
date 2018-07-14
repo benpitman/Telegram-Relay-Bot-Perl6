@@ -1,7 +1,6 @@
 {
-    "bot": {
-        "api": {
-            "token": ""
-        }
-    }
+    "api": {
+        "token": ""
+    },
+    "database": ""
 }

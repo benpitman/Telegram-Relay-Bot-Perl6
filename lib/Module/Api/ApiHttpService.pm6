@@ -24,7 +24,8 @@ class ApiHttpService
         # }
         #
         # $!entity.setData($!http.content) if $!http.success;
-        $!entity.setData("");
+
+        #TODO format errors (description)
 
         return $!entity;
     }
