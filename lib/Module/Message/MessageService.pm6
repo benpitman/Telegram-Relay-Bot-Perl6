@@ -20,4 +20,20 @@ class MessageService
             return $!entity;
         }
     }
+
+    method get ()
+    {
+        #TODO Perl seems to automatically flatten multidimensional arrays.
+        
+        my $messageRepository = MessageRepository.new;
+        $messageRepository.select(['id', 'date']);
+        # $messageRepository.where([%(id => 19, name => 'newtest'),%(id => 21)]);
+        $messageRepository.where([['id', '=', 19], ['name', '=', 'newtest']], [['id', '=', 21]]);
+        # $messageRepository.where({id => 19, name => 'newtest'});
+        $messageRepository.get();
+        say $messageRepository.all();
+        exit;
+        my Entity $messageEntity = $messageRepository.all();
+        $messageEntity.dispatch();
+    }
 }

@@ -42,7 +42,7 @@ class ApiService
         #TODO check if message exists
 
         my $messageService = MessageService.new;
-        $messageService.insertNew();
+        $messageService.get();
 
         return $!entity;
     }

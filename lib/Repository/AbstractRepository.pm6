@@ -10,6 +10,8 @@ role AbstractRepository
 {
     has $.table is rw;
     has $!dbc;
+    has $!dbs = '';
+    has $!dbe;
     has $!entity = Entity.new;
 
     submethod BUILD (:$!table)
@@ -26,6 +28,7 @@ role AbstractRepository
     submethod END ()
     {
         $!dbc.dispose();
+        $!dbs.finish();
     }
 
     multi method insert (@rows)
@@ -43,27 +46,35 @@ role AbstractRepository
         return @ids;
     }
 
-    multi method insert (%cols)
+    multi method insert (%row)
     {
-        my @keys;
+        my @cols;
         my @vals;
 
-        for %cols.kv -> $key, $val {
-            @keys.push: $key;
-            @vals.push: "'$val'";
+        for %row.kv -> $col, $val {
+            @cols.push: $col;
+
+            given $val.^name {
+                when Int {
+                    @vals.push: "$val";
+                }
+                default {
+                    @vals.push: "'$val'";
+                }
+            }
         }
 
-        my $colString = @keys.join(', ');
+        my $colString = @cols.join(', ');
         my $valString = @vals.join(', ');
-        my $dbs;
+
+        $!dbs = qq:to/STATEMENT/;
+            INSERT INTO $!table ($colString)
+            VALUES ($valString)
+        STATEMENT
 
         try {
-            $dbs = $!dbc.prepare(qq:to/STATEMENT/);
-                INSERT INTO $!table ($colString)
-                VALUES ($valString)
-            STATEMENT
-
-            $dbs.execute();
+            $!dbe = $!dbc.prepare($!dbs);
+            $!dbe.execute();
 
             CATCH {
                 $!entity.addError("$_");
@@ -72,12 +83,99 @@ role AbstractRepository
         }
 
         # Get last ID
-        $dbs = $!dbc.prepare("SELECT last_insert_rowid()");
+        my $dbs = $!dbc.prepare("SELECT last_insert_rowid()");
         $dbs.execute();
         my @lastId = $dbs.row();
 
         $dbs.finish();
 
         return @lastId;
+    }
+
+    method select (@cols)
+    {
+        my $colString = @cols.join(', ');
+
+        $!dbs = qq:to/STATEMENT/;
+        	SELECT $colString
+        	FROM $!table
+        STATEMENT
+    }
+
+    multi method where (%matches)
+    {
+        my $whereString = '';
+
+        for %matches.kv -> $col, $match {
+            FIRST { $whereString ~= "("; }
+            $whereString ~= " AND " if $++ > 0;
+
+            $whereString ~= "$col = ";
+
+            given $match {
+                when Int    { $whereString ~= "$match"; }
+                default     { $whereString ~= "'$match'"; }
+            }
+
+            LAST { $whereString ~= ")"; }
+        }
+
+        $!dbs ~= qq:to/STATEMENT/;
+        	WHERE $whereString
+        STATEMENT
+    }
+
+    multi method where (@matches)
+    {
+        my $whereString = '';
+
+        for @matches -> %matches {
+            $whereString ~= " OR " if $++ > 0;
+
+            for %matches.kv -> $col, $match {
+                FIRST { $whereString ~= "("; }
+                $whereString ~= " AND " if $++ > 0;
+
+                $whereString ~= "$col = ";
+
+                given $match {
+                    when Int    { $whereString ~= "$match"; }
+                    default     { $whereString ~= "'$match'"; }
+                }
+
+                LAST { $whereString ~= ")"; }
+            }
+        }
+
+        $!dbs ~= qq:to/STATEMENT/;
+        	WHERE $whereString
+        STATEMENT
+    }
+
+    multi method where (*@matches)
+    {
+        for @matches -> @match {
+            say @match;
+
+        }
+        exit;
+    }
+
+    method get ()
+    {
+        say $!dbs;
+        exit;
+        $!dbe = $!dbc.prepare($!dbs);
+        $!dbe.execute();
+    }
+
+    method all ()
+    {
+        return $!dbe.allrows().Array;
+    }
+
+    method first ()
+    {
+        return $!dbe.row();
     }
 }

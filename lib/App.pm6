@@ -18,7 +18,7 @@ class App
         AbstractRepository.new();
 
         my $messageService = MessageService.new;
-        my $messageEntity = $messageService.insert();
+        my $messageEntity = $messageService.get();
         say $messageEntity.dispatch();
         exit;
 
