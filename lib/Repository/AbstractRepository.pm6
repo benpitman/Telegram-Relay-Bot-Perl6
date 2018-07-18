@@ -27,14 +27,14 @@ role AbstractRepository
 
     submethod END ()
     {
-        $!dbc.dispose();
         $!dbs.finish();
+        $!dbc.dispose();
     }
 
-    multi method insert (@rows)
+    multi method insert (@rows where { @rows.first.WHAT === any(Pair, Hash) })
     {
-        my @ids;
-        my @id;
+        my Array @ids;
+        my Array @id;
 
         for @rows -> %row {
             @id = self.insert(%row);
@@ -48,8 +48,8 @@ role AbstractRepository
 
     multi method insert (%row)
     {
-        my @cols;
-        my @vals;
+        my Array @cols;
+        my Array @vals;
 
         for %row.kv -> $col, $val {
             @cols.push: $col;
@@ -64,8 +64,8 @@ role AbstractRepository
             }
         }
 
-        my $colString = @cols.join(', ');
-        my $valString = @vals.join(', ');
+        my Str $colString = @cols.join(', ');
+        my Str $valString = @vals.join(', ');
 
         $!dbs = qq:to/STATEMENT/;
             INSERT INTO $!table ($colString)
@@ -92,9 +92,9 @@ role AbstractRepository
         return @lastId;
     }
 
-    method select (@cols)
+    multi method select (*@cols where { $_.all ~~ Str })
     {
-        my $colString = @cols.join(', ');
+        my Str $colString = @cols.join(', ');
 
         $!dbs = qq:to/STATEMENT/;
         	SELECT $colString
@@ -102,49 +102,49 @@ role AbstractRepository
         STATEMENT
     }
 
+    multi method select (@cols)
+    {
+        self.select(|@cols);
+    }
+
     multi method where (%matches)
     {
-        my $whereString = '';
+        my Str $whereString = '(';
 
         for %matches.kv -> $col, $match {
-            FIRST { $whereString ~= "("; }
-            $whereString ~= " AND " if $++ > 0;
-
+            $whereString ~= " AND " if $++;
             $whereString ~= "$col = ";
 
             given $match {
                 when Int    { $whereString ~= "$match"; }
                 default     { $whereString ~= "'$match'"; }
             }
-
-            LAST { $whereString ~= ")"; }
         }
+        $whereString ~= ')';
 
         $!dbs ~= qq:to/STATEMENT/;
         	WHERE $whereString
         STATEMENT
     }
 
-    multi method where (@matches)
+    multi method where (@matches where { @matches.first.WHAT === any(Pair, Hash) })
     {
-        my $whereString = '';
+        my Str $whereString = '';
 
         for @matches -> %matches {
-            $whereString ~= " OR " if $++ > 0;
+            $whereString ~= " OR " if $++;
+            $whereString ~= '(';
 
             for %matches.kv -> $col, $match {
-                FIRST { $whereString ~= "("; }
-                $whereString ~= " AND " if $++ > 0;
-
+                $whereString ~= " AND " if $++;
                 $whereString ~= "$col = ";
 
                 given $match {
                     when Int    { $whereString ~= "$match"; }
                     default     { $whereString ~= "'$match'"; }
                 }
-
-                LAST { $whereString ~= ")"; }
             }
+            $whereString ~= ')';
         }
 
         $!dbs ~= qq:to/STATEMENT/;
@@ -152,21 +152,54 @@ role AbstractRepository
         STATEMENT
     }
 
-    multi method where (*@matches)
+    multi method where (@whereCols, @operators, @matches where { @whereCols.elems === @matches.elems })
     {
-        for @matches -> @match {
-            say @match;
+        my Str $whereString = '(';
+        my Int $index = 0;
+        my Str $operator;
 
+        for @whereCols Z @matches -> [$col, $match] {
+            $whereString ~= " AND " if $index++;
+
+            $operator = @operators[$index] // '=';
+            $whereString ~= "$col $operator ";
+
+            given $match {
+                when Int    { $whereString ~= "$match"; }
+                default     { $whereString ~= "'$match'"; }
+            }
         }
-        exit;
+        $whereString ~= ')';
+
+        $!dbs ~= qq:to/STATEMENT/;
+            WHERE $whereString
+        STATEMENT
+    }
+
+    multi method where (@whereCols, @matches where { @whereCols.elems === @matches.elems })
+    {
+        self.where(@whereCols, [], @matches)
+    }
+
+    multi method where ($whereCol, $operator, $match)
+    {
+        self.where([$whereCol], [$operator], [$match])
     }
 
     method get ()
     {
         say $!dbs;
         exit;
-        $!dbe = $!dbc.prepare($!dbs);
-        $!dbe.execute();
+
+        try {
+            $!dbe = $!dbc.prepare($!dbs);
+            $!dbe.execute();
+
+            CATCH {
+                $!entity.addError("$_");
+                return;
+            }
+        }
     }
 
     method all ()

@@ -27,12 +27,12 @@ class Entity
 
     multi method addError (Array \errors)
     {
-        %!response<errors>.append: errors.flat if ?errors.elems;
+        %!response<errors>.append: errors.flat if ?errors;
     }
 
     multi method addError (Str \error)
     {
-        %!response<errors>.push: error if ?error !== '';
+        %!response<errors>.push: error if ?error;
     }
 
     method getErrors ()
