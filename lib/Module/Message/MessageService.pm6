@@ -26,10 +26,11 @@ class MessageService
         #TODO Perl seems to automatically flatten multidimensional arrays.
 
         =begin comment
+        # INSERT
         # WHERE column = 0
         where([column => 0]);
         where({column => 0});
-        where('column', '=' 0);
+        where('column', '=', 0);
 
         # WHERE columnA = 1 AND columnB = 2
         where({columnA => 1, columnB => 2});
@@ -47,9 +48,11 @@ class MessageService
 
         my $messageRepository = MessageRepository.new;
         $messageRepository.select(['id', 'date']);
+        # $messageRepository.insert(['name', 'date'], ['hello', DateTime.now]);
+        # $messageRepository.where([%(id => 19, name => 'newtest'),%(id => 21)]);
         # $messageRepository.where([%(id => 19, name => 'newtest'),%(id => 21)]);
         # $messageRepository.where([['id', '=', 19], ['name', '=', 'newtest']]);
-        $messageRepository.where([a => 1]);
+        # $messageRepository.where([a => 1]);
         # $messageRepository.where(['a', 'b'], ['>'], [1, 2]);
         # $messageRepository.where(['a', 'b'], [1, 2]);
         # $messageRepository.where(['a'], [1]);
@@ -57,10 +60,9 @@ class MessageService
         # $messageRepository.where([['id', '=', 21]]);
         # $messageRepository.where({id => 19, name => 'newtest'});
         # $messageRepository.where({id => 19});
-        $messageRepository.get();
+        my Entity $messageEntity = $messageRepository.get();
         say $messageRepository.all();
         exit;
-        my Entity $messageEntity = $messageRepository.all();
         $messageEntity.dispatch();
     }
 }
