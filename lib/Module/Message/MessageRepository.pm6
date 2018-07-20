@@ -14,12 +14,6 @@ class MessageRepository does AbstractRepository
 
     method insertNew ()
     {
-        # my @ids = self.insert(
-        #     %(
-        #         nfame    => "newtest",
-        #         date    => DateTime.now
-        #     )
-        # );
         my @ids = self.insert(
             [
                 %(

@@ -96,7 +96,7 @@ role AbstractRepository
     multi method insert (@columns, @values where { @columns.elems === @values.elems })
     {
         my %row = @columns Z=> @values;
-        self.insert(%row);
+        return self.insert(%row);
     }
 
     multi method select (*@cols where { $_.all ~~ Str })
@@ -121,7 +121,7 @@ role AbstractRepository
         $!whereString ~= '(';
 
         for @whereCols Z @matches -> [$col, $match] {
-            $!whereString ~= " AND " if $index++;
+            $!whereString ~= " AND " if $index = $++;
 
             $operator = @operators[$index] // '=';
             $!whereString ~= "$col $operator ";
@@ -164,10 +164,10 @@ role AbstractRepository
         self.where([$whereCol], [], [$match]);
     }
 
-    multi method orWhere ()
+    multi method orWhere (|sig)
     {
-        # TODO
-        return;
+        $!whereString ~= ' OR ';
+        self.where(|sig);
     }
 
     method get ()
