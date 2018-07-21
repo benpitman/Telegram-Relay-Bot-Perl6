@@ -5,11 +5,6 @@ use JSON::Tiny;
 
 class Service
 {
-    method getApiService ()
-    {
-        return Module::Api::ApiService;
-    }
-
     method getConfig ()
     {
         my $configFile = 'Settings/config.json'.IO.slurp // die 'No config file found';

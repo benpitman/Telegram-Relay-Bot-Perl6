@@ -34,26 +34,27 @@ role AbstractRepository
 
     multi method insert (@rows where { @rows.first.WHAT === any(Pair, Hash) })
     {
-        my Array @ids;
-        my Array @id;
+        my @ids;
 
         for @rows -> %row {
-            @id = self.insert(%row);
+            self.insert(%row);
 
             last if $!entity.hasErrors();
-            @ids.push: @id[0];
+
+            @ids.push: $!entity.getData()[0];
         }
 
-        return @ids;
+        $!entity.addError(@ids);
+        return $!entity;
     }
 
     multi method insert (%row)
     {
-        my Array @cols;
-        my Array @vals;
+        my @cols;
+        my @vals;
 
         for %row.kv -> $col, $val {
-            @cols.push: $col;
+            @cols.push: "$col";
 
             given $val.^name {
                 when Int {
@@ -86,11 +87,11 @@ role AbstractRepository
         # Get last ID
         my $dbs = $!dbc.prepare("SELECT last_insert_rowid()");
         $dbs.execute();
-        my @lastId = $dbs.row();
+        $!entity.setData($dbs.row());
 
         $dbs.finish();
 
-        return @lastId;
+        return $!entity;
     }
 
     multi method insert (@columns, @values where { @columns.elems === @values.elems })

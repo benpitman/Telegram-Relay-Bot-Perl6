@@ -9,34 +9,28 @@ class ApiDataService
     has $!entity = Entity.new;
     has %!result;
 
-    method parseResponse (Str $json)
+    method parseResponse (@results)
     {
-        my %response;
         my $updateId;
 
-        try {
-            %response = from-json($json);
+        for @results -> %response {
+            %response.map: {
 
-            CATCH {
-                $!entity.addError("$_");
-                return $!entity;
+                %!result.push: %(
+                    updateId    => %^item<update_id>,
+                    message     => %(
+                        %^item<message>
+                    )
+                );
+
+                say to-json(%^item);
+                say "\n";
+
+                # Overwrite every time so it's set to the last in the loop
+                $updateId = %^item<update_id>;
             }
+
+            die $updateId;
         }
-
-        %response<result>.map: {
-            # %!result.push: %(
-            #     updateId    => %^item<update_id>,
-            #     message     => %(
-            #         %^item<message>
-            #     )
-            # );
-            say to-json(%^item);
-            say "\n";
-
-            # Overwrite every time so it's set to the last in the loop
-            $updateId = %^item<update_id>;
-        }
-
-        die $updateId;
     }
 }

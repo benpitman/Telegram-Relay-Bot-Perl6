@@ -4,10 +4,10 @@ use v6;
 
 need Repository::AbstractRepository;
 
-class MessageRepository does AbstractRepository
+class ResponseRepository does AbstractRepository
 {
     method new ()
     {
-        self.bless(table => 'messages');
+        self.bless(table => 'responses');
     }
 }

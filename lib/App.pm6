@@ -7,6 +7,7 @@ need Service::Service;
 
 need Repository::AbstractRepository;
 
+need Module::Api::ApiService;
 need Module::Message::MessageService;
 
 class App
@@ -17,20 +18,18 @@ class App
         # AbstractRepository.new(database => %config<database>);
         AbstractRepository.new();
 
-        my $messageService = MessageService.new;
-        my $messageEntity = $messageService.get();
-        say $messageEntity.dispatch();
-        exit;
+        # my $messageService = MessageService.new;
+        # my $messageEntity = $messageService.get();
+        # say $messageEntity.dispatch();
+        # exit;
 
-        my $apiService = Service.getApiService();
-        $apiService.=new(apiConfig => %config<api>);
+        my $apiService = ApiService.new(apiConfig => %config<api>);
 
         my $apiEntity = $apiService.getUpdates();
         # my $apiEntity = $apiService.sendMessage("1", "hello");
 
         $apiEntity.dispatch() if $apiEntity.hasErrors();
 
-        my $textService = Service.getTextService();
-        $textService.=new();
+        # my $textService = TextService.new();
     }
 }

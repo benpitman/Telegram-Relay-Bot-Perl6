@@ -7,6 +7,7 @@ need Module::Api::ApiDBService;
 need Module::Api::ApiHttpService;
 # need Api::ApiTextService;
 need Module::Message::MessageService;
+need Module::Response::ResponseService;
 need Entity::Entity;
 
 class ApiService
@@ -25,13 +26,21 @@ class ApiService
 
     method getUpdates ()
     {
-        $!url ~= "/getUpdates";
-
-        my Entity $httpEntity = $!apiHttpService.post($!url);
+        my Entity $httpEntity = $!apiHttpService.post($!url ~ "/getUpdates");
         if $httpEntity.hasErrors() {
             $!entity.addError($httpEntity.getErrors());
             return $!entity;
         }
+
+        my $responseService = ResponseService.new;
+        my Entity $responseEntity = $responseService.insert($httpEntity.getData());
+
+        if $responseEntity.hasErrors() {
+            $!entity.addError($responseEntity.getErrors());
+            return $!entity;
+        }
+
+        # TODO parse response
 
         my Entity $dataEntity = $!apiDataService.parseResponse($httpEntity.getData());
         if $dataEntity.hasErrors() {

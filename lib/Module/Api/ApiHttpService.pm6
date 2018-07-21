@@ -1,8 +1,10 @@
 #!/usr/bin/perl6
 
 use v6;
+use JSON::Tiny;
 use LibCurl::HTTP; # requires libcurl4-openssl-dev
-use Entity::Entity;
+
+need Entity::Entity;
 
 class ApiHttpService
 {
@@ -23,10 +25,17 @@ class ApiHttpService
         #     }
         # }
         #
-        # $!entity.setData($!http.content) if $!http.success;
+        # my %response;
+        # try {
+        #     %response = from-json($!http.content);
+        #
+        #     CATCH {
+        #         $!entity.addError("$_");
+        #         return $!entity;
+        #     }
+        # }
 
-        #TODO format errors (description)
-
+        $!entity.setData('DB/test.txt'.IO.slurp);
         return $!entity;
     }
 }
