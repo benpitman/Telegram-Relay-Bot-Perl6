@@ -10,15 +10,19 @@ class MessageService
 {
     has $!entity = MessageEntity.new;
 
-    method insert ()
+    method insert ($messageId, $userId, $chatId, $toMessageId, $messageDate, $messageText)
     {
         my $messageRepository = MessageRepository.new;
-        my Entity $messageEntity = $messageRepository.insertNew();
-
-        if $messageEntity.hasErrors() {
-            $!entity.addError($messageEntity.getErrors());
-            return $!entity;
-        }
+        return $messageRepository.insert(
+            %(
+                message_id      => $messageId,
+                user_id         => $userId,
+                chat_id         => $chatId,
+                to_message_id   => $toMessageId,
+                message_date    => $messageDate,
+                message_text    => $messageText
+            )
+        );
     }
 
     method get ()

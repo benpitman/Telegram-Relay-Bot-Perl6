@@ -32,17 +32,17 @@ class ApiService
             return $!entity;
         }
 
-        my $responseService = ResponseService.new;
-        my Entity $responseEntity = $responseService.insert($httpEntity.getData());
+        my $response = $httpEntity.getData();
 
-        if $responseEntity.hasErrors() {
-            $!entity.addError($responseEntity.getErrors());
-            return $!entity;
-        }
+        # my $responseService = ResponseService.new;
+        # my Entity $responseEntity = $responseService.insert($response);
+        #
+        # if $responseEntity.hasErrors() {
+        #     $!entity.addError($responseEntity.getErrors());
+        #     return $!entity;
+        # }
 
-        # TODO parse response
-
-        my Entity $dataEntity = $!apiDataService.parseResponse($httpEntity.getData());
+        my Entity $dataEntity = $!apiDataService.parseResponse($response);
         if $dataEntity.hasErrors() {
             $!entity.addError($dataEntity.getErrors());
             return $!entity;

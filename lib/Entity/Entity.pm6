@@ -43,5 +43,6 @@ class Entity
     method dispatch ()
     {
         say to-json(%!response);
+        exit;
     }
 }
