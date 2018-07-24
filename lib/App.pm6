@@ -14,6 +14,7 @@ class App
 {
     method new ()
     {
+
         my %config = Service.getConfig();
         # AbstractRepository.new(database => %config<database>);
         AbstractRepository.new();

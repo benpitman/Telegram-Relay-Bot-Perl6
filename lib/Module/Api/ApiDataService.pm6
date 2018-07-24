@@ -26,15 +26,18 @@ class ApiDataService
         # Result can be array or hash, this makes sure it's always a 1D array
         my @results;
         given %response<result> {
-            when Hash { @results = [$_]; }
-            when Array { @results = |$_; }
+            when Hash   { @results = [$_]; }
+            when Array  { @results = |$_; }
         }
-        # say @results[0].WHAT;exit;
-        # @results if @results[0].WHAT === Array;
+
+        # No results
+        return $!entity if !@results.elems;
+
         my $updateId;
         my $userService = UserService.new;
         my $chatService = ChatService.new;
         my $messageService = MessageService.new;
+        # my $fileService = FileService.new; #TODO for stickers, documents and other files
 
         for @results -> %result {
 
@@ -42,47 +45,130 @@ class ApiDataService
             $updateId = %result<update_id>;
             my %message = %result<message>;
 
+            # Get user if it exists
             my %from = %message<from>;
-            my Entity $userEntity = $userService.insert(
-                %from<id>,
-                %from<is_bot>,
-                %from<first_name>   // '',
-                %from<last_name>    // '',
-                %from<username>     // ''
-            );
+            my Entity $userEntity = $userService.getOneByUserId(%from<id>);
 
             if $userEntity.hasErrors() {
                 $!entity.addError($userEntity.getErrors());
                 return $!entity;
             }
 
+            my $userId;
+            if $userEntity.hasData() {
+                $userId = $userEntity.getData()<ID>;
+            }
+
+            if !$userId {
+                my Entity $userEntity = $userService.insert(
+                    %from<id>,
+                    %from<is_bot>,
+                    %from<first_name>   // 'NULL',
+                    %from<last_name>    // 'NULL',
+                    %from<username>     // 'NULL'
+                );
+
+                if $userEntity.hasErrors() {
+                    $!entity.addError($userEntity.getErrors());
+                    return $!entity;
+                }
+
+                $userId = $userEntity.getData()[0];
+            }
+
+            # Get chat if exists
             my %chat = %message<chat>;
-            my Entity $chatEntity = $chatService.insert(
-                %chat<id>,
-                %chat<title>,
-                %chat<type>
-            );
+            my Entity $chatEntity = $chatService.getOneByChatId(%chat<id>);
 
             if $chatEntity.hasErrors() {
                 $!entity.addError($chatEntity.getErrors());
                 return $!entity;
             }
 
+            my $chatId;
+            if $chatEntity.hasData() {
+                $chatId = $chatEntity.getData()<ID>;
+            }
+
+            if !$chatId {
+                my Entity $chatEntity = $chatService.insert(
+                    %chat<id>,
+                    %chat<title>,
+                    %chat<type>
+                );
+
+                if $chatEntity.hasErrors() {
+                    $!entity.addError($chatEntity.getErrors());
+                    return $!entity;
+                }
+
+                $chatId = $chatEntity.getData()[0];
+            }
+
+            # Get reply to message if exists
+            my $toMessageId;
+            if %message<reply_to_message> {
+                my Entity $messageEntity = $messageService.getOneByMessageId(
+                    %message<reply_to_message><message_id>,
+                    $toMessageId
+                );
+
+                if $messageEntity.hasErrors() {
+                    $!entity.addError($messageEntity.getErrors());
+                    return $!entity;
+                }
+
+                if $messageEntity.hasData() {
+                    $toMessageId = $messageEntity.getData()<ID>;
+                }
+            }
+
+            # Get sticker if exists
+            my $stickerId;
+            if %message<sticker> {
+                # $stickerId = self.getIfExists($messageService, %message<sticker><file_id>);
+
+                return $!entity if $!entity.hasErrors();
+            }
+
+            # Get document if exists
+            my $documentId;
+            if %message<document> {
+                # $documentId = self.getIfExists($messageService, %message<sticker><file_id>);
+
+                return $!entity if $!entity.hasErrors();
+            }
+
+            $messageService = MessageService.new;
             my Entity $messageEntity = $messageService.insert(
                 %message<message_id>,
-                $userEntity.getData()[0],
-                $chatEntity.getData()[0],
-                Any, #TODO Need to allow NULL
-                DateTime.new(%message<date>),
-                %message<text> // ''
+                $userId,
+                $chatId,
+                $toMessageId                    // 'NULL',
+                $stickerId                      // 'NULL',
+                $documentId                     // 'NULL',
+                %message<text>                  // 'NULL',
+                DateTime.new(%message<date>)
             );
 
             if $messageEntity.hasErrors() {
                 $!entity.addError($messageEntity.getErrors());
                 return $!entity;
             }
+        }
+    }
 
-            say $updateId; exit;
+    method getIfExists ($service, $id)
+    {
+        my Entity $entity = $service.getOneBySubId($id);
+
+        if $entity.hasErrors() {
+            $!entity.addError($entity.getErrors());
+            return
+        }
+
+        if $entity.hasData() {
+            return $entity.getData()<ID>;
         }
     }
 }

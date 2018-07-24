@@ -10,6 +10,11 @@ class Entity
         errors  => []
     );
 
+    method hasData ()
+    {
+        return ?%!response<data>;
+    }
+
     method setData (Any \data)
     {
         %!response<data> = data;

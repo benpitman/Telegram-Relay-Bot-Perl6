@@ -48,11 +48,6 @@ class ApiService
             return $!entity;
         }
 
-        #TODO check if message exists
-
-        my $messageService = MessageService.new;
-        $messageService.get();
-
         return $!entity;
     }
 

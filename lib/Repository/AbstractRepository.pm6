@@ -28,7 +28,6 @@ role AbstractRepository
 
     submethod END ()
     {
-        $!dbs.finish();
         $!dbc.dispose();
     }
 
@@ -44,7 +43,7 @@ role AbstractRepository
             @ids.push: $!entity.getData()[0];
         }
 
-        $!entity.addError(@ids);
+        $!entity.setData(@ids);
         return $!entity;
     }
 
@@ -54,11 +53,12 @@ role AbstractRepository
         my @vals;
 
         for %row.kv -> $col, $val {
-            @cols.push: "$col";
+            next if $val === 'NULL';
+            @cols.push: "'$col'";
 
-            given $val.^name {
+            given $val {
                 when Int {
-                    @vals.push: "$val";
+                    @vals.push: $val;
                 }
                 default {
                     @vals.push: "'$val'";
@@ -77,10 +77,11 @@ role AbstractRepository
         try {
             $!dbe = $!dbc.prepare($!dbs);
             $!dbe.execute();
+            $!dbe.finish();
 
             CATCH {
                 $!entity.addError("$_");
-                return;
+                return $!entity;
             }
         }
 
@@ -113,6 +114,11 @@ role AbstractRepository
     multi method select (@cols)
     {
         self.select(|@cols);
+    }
+
+    multi method select ()
+    {
+        self.select(['*']);
     }
 
     multi method where (@whereCols, @operators, @matches where { @whereCols.elems === @matches.elems })
@@ -177,27 +183,33 @@ role AbstractRepository
         WHERE $!whereString
         STATEMENT
 
-        say $!dbs;
-        exit;
-
         try {
             $!dbe = $!dbc.prepare($!dbs);
             $!dbe.execute();
 
             CATCH {
                 $!entity.addError("$_");
-                return;
             }
         }
     }
 
-    method all ()
+    method getAll ()
     {
-        return $!dbe.allrows().Array;
+        self.get();
+        return $!entity if $!entity.hasErrors();
+
+        $!entity.setData($!dbe.allrows(:array-of-hash));
+        $!dbe.finish();
+        return $!entity;
     }
 
-    method first ()
+    method getFirst ()
     {
-        return $!dbe.row();
+        self.get();
+        return $!entity if $!entity.hasErrors();
+
+        $!entity.setData($!dbe.row(:hash));
+        $!dbe.finish();
+        return $!entity;
     }
 }
