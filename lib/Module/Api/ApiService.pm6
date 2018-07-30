@@ -24,9 +24,10 @@ class ApiService
     has $!url = "https://api.telegram.org/bot" ~ $!token;
     has %!post = %();
 
-    method getUpdates ()
+    method getWebhookInfo ()
     {
-        my Entity $httpEntity = $!apiHttpService.post($!url ~ "/getUpdates");
+        my Entity $httpEntity = $!apiHttpService.post($!url ~ '/getWebhookInfo');
+
         if $httpEntity.hasErrors() {
             $!entity.addError($httpEntity.getErrors());
             return $!entity;
@@ -34,15 +35,46 @@ class ApiService
 
         my $response = $httpEntity.getData();
 
-        # my $responseService = ResponseService.new;
-        # my Entity $responseEntity = $responseService.insert($response);
-        #
-        # if $responseEntity.hasErrors() {
-        #     $!entity.addError($responseEntity.getErrors());
-        #     return $!entity;
-        # }
+        my $responseService = ResponseService.new;
+        my Entity $responseEntity = $responseService.insert($response);
 
-        my Entity $dataEntity = $!apiDataService.parseResponse($response);
+        if $responseEntity.hasErrors() {
+            $!entity.addError($responseEntity.getErrors());
+            return $!entity;
+        }
+        my $responseId = $responseEntity.getData()[0];
+
+        my Entity $dataEntity = $!apiDataService.parseWebhookResponse($response);
+
+        if $dataEntity.hasErrors() {
+            $!entity.addError($dataEntity.getErrors());
+            return $!entity;
+        }
+
+        return $!entity;
+    }
+
+    method getUpdates ()
+    {
+        my Entity $httpEntity = $!apiHttpService.post($!url ~ '/getUpdates');
+
+        if $httpEntity.hasErrors() {
+            $!entity.addError($httpEntity.getErrors());
+            return $!entity;
+        }
+
+        my $response = $httpEntity.getData();
+
+        my $responseService = ResponseService.new;
+        my Entity $responseEntity = $responseService.insert($response);
+
+        if $responseEntity.hasErrors() {
+            $!entity.addError($responseEntity.getErrors());
+            return $!entity;
+        }
+
+        my Entity $dataEntity = $!apiDataService.parseUpdateResponse($response);
+
         if $dataEntity.hasErrors() {
             $!entity.addError($dataEntity.getErrors());
             return $!entity;

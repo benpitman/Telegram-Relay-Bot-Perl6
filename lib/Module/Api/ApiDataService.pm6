@@ -12,9 +12,9 @@ need Module::Message::MessageService;
 class ApiDataService
 {
     has $!entity = Entity.new;
-    has %!result;
+    has @!results = [];
 
-    method parseResponse (Str $response)
+    method validateResponse (Str $response)
     {
         my %response = from-json($response);
 
@@ -24,14 +24,34 @@ class ApiDataService
         }
 
         # Result can be array or hash, this makes sure it's always a 1D array
-        my @results;
         given %response<result> {
-            when Hash   { @results = [$_]; }
-            when Array  { @results = |$_; }
+            when Hash   { @!results = [$_]; }
+            when Array  { @!results = |$_; }
         }
 
         # No results
-        return $!entity if !@results.elems;
+        return $!entity if !@!results.elems;
+    }
+
+    method parseWebhookResponse (Str $response)
+    {
+        self.validateResponse($response);
+
+        $!entity.setData(
+            %(
+                webhook => ?@!results[0]<url> // '',
+                pending => +@!results[0]<pending_update_count> // 0
+            )
+        );
+
+        return $!entity;
+    }
+
+    method parseUpdateResponse (Str $response)
+    {
+        self.validateResponse($response);
+
+        return $!entity if $!entity.hasErrors() || !@!results.elems;
 
         my $updateId;
         my $userService = UserService.new;
@@ -39,7 +59,7 @@ class ApiDataService
         my $messageService = MessageService.new;
         # my $fileService = FileService.new; #TODO for stickers, documents and other files
 
-        for @results -> %result {
+        for @!results -> %result {
 
             # Overwrite every time so it's set to the last in the loop
             $updateId = %result<update_id>;
@@ -155,6 +175,7 @@ class ApiDataService
                 $!entity.addError($messageEntity.getErrors());
                 return $!entity;
             }
+            die;
         }
     }
 
