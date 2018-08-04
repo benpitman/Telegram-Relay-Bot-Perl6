@@ -7,4 +7,5 @@ use App;
 sub MAIN ()
 {
     my $app = App.new;
+    $app.init();
 }

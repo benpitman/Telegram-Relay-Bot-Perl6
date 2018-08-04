@@ -180,7 +180,7 @@ role AbstractRepository
     method get ()
     {
         $!dbs ~= qq:to/STATEMENT/ if ?$!whereString;
-        WHERE $!whereString
+            WHERE $!whereString
         STATEMENT
 
         try {

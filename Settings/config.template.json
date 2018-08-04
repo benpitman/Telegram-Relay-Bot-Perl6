@@ -1,6 +1,11 @@
 {
     "api": {
+        "updateId": 0,
         "token": ""
     },
-    "database": ""
+    "database": "",
+    "webhook": {
+        "port": 8443,
+        "url": "localhost"
+    }
 }

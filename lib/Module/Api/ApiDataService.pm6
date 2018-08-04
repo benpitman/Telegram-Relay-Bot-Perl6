@@ -4,6 +4,7 @@ use v6;
 use JSON::Tiny;
 
 need Entity::Entity;
+need Service::Service;
 
 need Module::User::UserService;
 need Module::Chat::ChatService;
@@ -13,6 +14,7 @@ class ApiDataService
 {
     has $!entity = Entity.new;
     has @!results = [];
+    has $!service = Service.new;
 
     method validateResponse (Str $response)
     {
@@ -53,14 +55,15 @@ class ApiDataService
 
         return $!entity if $!entity.hasErrors() || !@!results.elems;
 
-        my $updateId;
+        my $updateId = $!service.getUpdateId();
         my $userService = UserService.new;
         my $chatService = ChatService.new;
         my $messageService = MessageService.new;
         # my $fileService = FileService.new; #TODO for stickers, documents and other files
-
+        
         for @!results -> %result {
 
+            next if %result<update_id> <= $updateId;
             # Overwrite every time so it's set to the last in the loop
             $updateId = %result<update_id>;
             my %message = %result<message>;
@@ -175,8 +178,9 @@ class ApiDataService
                 $!entity.addError($messageEntity.getErrors());
                 return $!entity;
             }
-            die;
         }
+
+        $!service.saveUpdateId($updateId);
     }
 
     method getIfExists ($service, $id)

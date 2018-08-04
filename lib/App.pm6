@@ -1,10 +1,10 @@
 #!/usr/bin/perl6
 
 use v6;
-use JSON::Tiny;
+use JSON::Fast;
 
-need Service::Service;
 need Entity::Entity;
+need Service::Service;
 
 need Repository::AbstractRepository;
 
@@ -14,11 +14,13 @@ need Module::Message::MessageService;
 
 class App
 {
+    has $!service = Service.new;
     has $!apiService;
 
-    method new ()
+    method init ()
     {
-        my %config = Service.getConfig();
+        my %config = $!service.getConfig();
+
         my Entity $apiEntity;
 
         $!apiService = ApiService.new(apiConfig => %config<api>);
@@ -28,8 +30,13 @@ class App
         self!parseErrors($apiEntity) if $apiEntity.hasErrors();
         my $webhookUrl = $apiEntity.getData()<webhook>;
 
-        if ?%config<webhook><url> && %config<webhook><url> === $webhookUrl {
-            self!listener();
+        if ?%config<webhook><url> {
+            if %config<webhook><url> === $webhookUrl {
+                self!listener();
+            }
+            else {
+                die 'Webook URL does not match config URL'
+            }
         }
         else {
             self!updateLoop();
@@ -53,11 +60,18 @@ class App
 
     method !updateLoop ()
     {
-        my Entity $apiEntity = $!apiService.getUpdates();
+
+        loop {
+            my Entity $apiEntity = $!apiService.getUpdates();
+            self!parseErrors($apiEntity) if $apiEntity.hasErrors();
+
+            sleep 10;
+        }
     }
 
     method !listener ()
     {
+        return;
     }
 
     method !parseErrors(Entity $entity)

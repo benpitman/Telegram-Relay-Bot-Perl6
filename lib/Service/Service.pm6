@@ -1,13 +1,41 @@
 #!/usr/bin/perl6
 
 use v6;
-use JSON::Tiny;
+use JSON::Fast;
 
 class Service
 {
+    has $!configFilePath;
+    has %!config;
+
+    submethod BUILD ()
+    {
+        $!configFilePath = 'Settings/config.json';
+        $!configFilePath.IO.e or die "'$!configFilePath' file not found";
+
+        try {
+            %!config = from-json($!configFilePath.IO.slurp);
+
+            CATCH {
+                die 'Config file is incorrectly formatted';
+            }
+        }
+    }
+
     method getConfig ()
     {
-        my $configFile = 'Settings/config.json'.IO.slurp // die 'No config file found';
-        return from-json($configFile);
+        return %!config;
+    }
+
+    method getUpdateId ()
+    {
+        return %!config<api><updateId>;
+    }
+
+    method saveUpdateId (Int $updateId)
+    {
+        %!config<api><updateId> = $updateId;
+
+        spurt $!configFilePath, to-json(%!config, :pretty, :spacing(4)), :close;
     }
 }
