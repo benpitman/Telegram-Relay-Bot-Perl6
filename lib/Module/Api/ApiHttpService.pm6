@@ -25,9 +25,9 @@ class ApiHttpService
             }
         }
 
-        my %response;
+        my $response = $!http.content;
         try {
-            %response = from-json($!http.content);
+            from-json($response);
 
             CATCH {
                 $!entity.addError("$_");
@@ -36,7 +36,7 @@ class ApiHttpService
         }
 
         # $!entity.setData('DB/test.txt'.IO.slurp);
-        $!entity.setData(%response);
+        $!entity.setData($response);
         return $!entity;
     }
 }

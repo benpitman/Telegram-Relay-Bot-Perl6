@@ -8,8 +8,6 @@ need Module::Message::MessageRepository;
 
 class MessageService
 {
-    has $!entity = MessageEntity.new;
-
     method insert ($messageId, $userId, $chatId, $toMessageId, $stickerId, $documentId, $messageText, $messageDate)
     {
         my $messageRepository = MessageRepository.new;
@@ -30,16 +28,11 @@ class MessageService
     method getOneByMessageId ($messageId, $chatId)
     {
         my $messageRepository = MessageRepository.new;
+
         $messageRepository.select();
+
         $messageRepository.where(['message_id', 'chat_id'], [$messageId, $chatId]);
-        my Entity $messageEntity = $messageRepository.getFirst();
 
-        if $messageEntity.hasErrors() {
-            $!entity.addError($messageEntity.getErrors());
-            return $!entity;
-        }
-
-        $!entity.setData($messageEntity.getData());
-        return $!entity;
+        return $messageRepository.getFirst();
     }
 }

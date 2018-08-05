@@ -1,7 +1,7 @@
 #!/usr/bin/perl6
 
 use v6;
-use JSON::Tiny;
+use JSON::Fast;
 
 class Entity
 {
@@ -48,6 +48,6 @@ class Entity
     method dispatch ()
     {
         say to-json(%!response);
-        exit;
+        exit 1;
     }
 }

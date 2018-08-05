@@ -56,17 +56,19 @@ class ApiDataService
         return $!entity if $!entity.hasErrors() || !@!results.elems;
 
         my $updateId = $!service.getUpdateId();
+        my @responses = [];
         my $userService = UserService.new;
         my $chatService = ChatService.new;
         my $messageService = MessageService.new;
         # my $fileService = FileService.new; #TODO for stickers, documents and other files
-        
+
         for @!results -> %result {
 
             next if %result<update_id> <= $updateId;
             # Overwrite every time so it's set to the last in the loop
             $updateId = %result<update_id>;
             my %message = %result<message>;
+            my %response = %();
 
             # Get user if it exists
             my %from = %message<from>;
@@ -81,9 +83,9 @@ class ApiDataService
             if $userEntity.hasData() {
                 $userId = $userEntity.getData()<ID>;
             }
-
-            if !$userId {
-                my Entity $userEntity = $userService.insert(
+            else {
+                $userService = UserService.new;
+                $userEntity = $userService.insert(
                     %from<id>,
                     %from<is_bot>,
                     %from<first_name>   // 'NULL',
@@ -98,6 +100,9 @@ class ApiDataService
 
                 $userId = $userEntity.getData()[0];
             }
+            $userEntity = $userService.getName($userId);
+            return $userEntity if $userEntity.hasErrors();
+            %response<from> = $userEntity.getData();
 
             # Get chat if exists
             my %chat = %message<chat>;
@@ -112,11 +117,10 @@ class ApiDataService
             if $chatEntity.hasData() {
                 $chatId = $chatEntity.getData()<ID>;
             }
-
-            if !$chatId {
+            else {
                 my Entity $chatEntity = $chatService.insert(
                     %chat<id>,
-                    %chat<title>,
+                    %chat<title> // 'NULL',
                     %chat<type>
                 );
 
@@ -128,9 +132,13 @@ class ApiDataService
                 $chatId = $chatEntity.getData()[0];
             }
 
+            $chatEntity = $chatService.getTitle($chatId);
+            return $chatEntity if $chatEntity.hasErrors();
+            %response<chat> = $chatEntity.getData();
+
             # Get reply to message if exists
             my $toMessageId;
-            if %message<reply_to_message> {
+            if ?%message<reply_to_message> {
                 my Entity $messageEntity = $messageService.getOneByMessageId(
                     %message<reply_to_message><message_id>,
                     $toMessageId
@@ -162,7 +170,6 @@ class ApiDataService
                 return $!entity if $!entity.hasErrors();
             }
 
-            $messageService = MessageService.new;
             my Entity $messageEntity = $messageService.insert(
                 %message<message_id>,
                 $userId,
@@ -173,14 +180,22 @@ class ApiDataService
                 %message<text>                  // 'NULL',
                 DateTime.new(%message<date>)
             );
+            %response<message> = %message<text> // '';
 
             if $messageEntity.hasErrors() {
                 $!entity.addError($messageEntity.getErrors());
                 return $!entity;
             }
+
+            if $messageEntity.hasData() {
+                @responses.push: %response;
+            }
         }
 
         $!service.saveUpdateId($updateId);
+        $!entity.setData(@responses);
+
+        return $!entity;
     }
 
     method getIfExists ($service, $id)

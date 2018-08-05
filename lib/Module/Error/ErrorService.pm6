@@ -6,7 +6,7 @@ need Module::Error::ErrorRepository;
 
 class ErrorService
 {
-    method insert (Array @errors)
+    method insert (@errors)
     {
         my $errorRepository = ErrorRepository.new;
         my $now = DateTime.now;
@@ -19,6 +19,7 @@ class ErrorService
             );
         }
 
+        #FIXME mutliple inserts broken
         return $errorRepository.insert(@errorBatch);
     }
 }

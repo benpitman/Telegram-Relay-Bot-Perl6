@@ -3,7 +3,7 @@
 use v6;
 
 need Module::Api::ApiDataService;
-need Module::Api::ApiDBService;
+# need Module::Api::ApiDBService;
 need Module::Api::ApiHttpService;
 # need Api::ApiTextService;
 need Module::Message::MessageService;
@@ -14,93 +14,105 @@ class ApiService
 {
     has %.apiConfig;
 
-    has $!apiDataService = ApiDataService.new;
-    has $!apiDBService = ApiDBService.new;
-    has $!apiHttpService = ApiHttpService.new;
+    # has $!apiDBService = ApiDBService.new;
     # has $!apiTextService = ApiTextService.new;
 
-    has $!entity = Entity.new;
+    has $!defaultChatId = %!apiConfig<api><defaultTargetChatId>;
     has $!token = %!apiConfig<token>;
     has $!url = "https://api.telegram.org/bot" ~ $!token;
     has %!post = %();
 
     method getWebhookInfo ()
     {
-        my Entity $httpEntity = $!apiHttpService.post($!url ~ '/getWebhookInfo');
+        # Get HTTP response
+        my $apiHttpService = ApiHttpService.new;
+        my Entity $httpEntity = $apiHttpService.post($!url ~ '/getWebhookInfo');
 
-        if $httpEntity.hasErrors() {
-            $!entity.addError($httpEntity.getErrors());
-            return $!entity;
-        }
+        return $httpEntity if $httpEntity.hasErrors();
 
         my $response = $httpEntity.getData();
 
+        # Save response
         my $responseService = ResponseService.new;
         my Entity $responseEntity = $responseService.insert($response);
 
-        if $responseEntity.hasErrors() {
-            $!entity.addError($responseEntity.getErrors());
-            return $!entity;
-        }
-        my $responseId = $responseEntity.getData()[0];
+        return $responseEntity if $responseEntity.hasErrors();
 
-        my Entity $dataEntity = $!apiDataService.parseWebhookResponse($response);
+        # Parse response
+        my $apiDataService = ApiDataService.new;
+        my Entity $dataEntity = $apiDataService.parseWebhookResponse($response);
 
-        if $dataEntity.hasErrors() {
-            $!entity.addError($dataEntity.getErrors());
-            return $!entity;
-        }
+        return $dataEntity if $dataEntity.hasErrors();
 
-        return $!entity;
+        return $dataEntity;
     }
 
     method getUpdates ()
     {
-        my Entity $httpEntity = $!apiHttpService.post($!url ~ '/getUpdates');
+        # Get response
+        my $apiHttpService = ApiHttpService.new;
+        my Entity $httpEntity = $apiHttpService.post($!url ~ '/getUpdates');
 
-        if $httpEntity.hasErrors() {
-            $!entity.addError($httpEntity.getErrors());
-            return $!entity;
-        }
+        return $httpEntity if $httpEntity.hasErrors();
 
         my $response = $httpEntity.getData();
 
+        # Save response
         my $responseService = ResponseService.new;
         my Entity $responseEntity = $responseService.insert($response);
 
-        if $responseEntity.hasErrors() {
-            $!entity.addError($responseEntity.getErrors());
-            return $!entity;
+        return $responseEntity if $responseEntity.hasErrors();
+
+        # Parse response
+        my $apiDataService = ApiDataService.new;
+        my Entity $dataEntity = $apiDataService.parseUpdateResponse($response);
+
+        return $dataEntity if $dataEntity.hasErrors();
+
+        if $dataEntity.hasData() && $!defaultChatId {
+            self.forwardMessages($dataEntity.getData());
         }
 
-        my Entity $dataEntity = $!apiDataService.parseUpdateResponse($response);
-
-        if $dataEntity.hasErrors() {
-            $!entity.addError($dataEntity.getErrors());
-            return $!entity;
-        }
-
-        return $!entity;
+        return $dataEntity;
     }
 
-    method sendMessage (Cool $chat_id, Str $text, *%addenda)
+    method forwardMessages (@responses)
     {
-        $!url ~= "/sendMessage";
+        my $text;
+        for @responses -> %response {
+            $text = '';
+            $text ~= "Chat: " ~ %response<chat> if ?%response<chat>;
+            $text ~= "\nFrom: " ~ %response<from>;
+            $text ~= "\n\n%response<message>" if ?%response<message>;
+
+            self.sendMessage($!defaultChatId, $text);
+        }
+    }
+
+    method sendMessage (Cool $chat_id, Str $text)
+    {
         %!post = %(
             :$chat_id,
             :$text,
         );
 
-        %!post.push: $_ for %addenda;
+        # %!post.push: $_ for %addenda;
 
         my $post = self!stringifyPost();
+        my $apiHttpService = ApiHttpService.new;
+        my Entity $httpEntity = $apiHttpService.post($!url ~ "/sendMessage", $post);
     }
 
     method !stringifyPost ()
     {
-        return ~%!post
-            .subst( /\n/, '&', :g )
-            .subst( /\h+/, '=', :g );
+        # return ~%!post
+        #     .subst( /\n/, '&', :g )
+        #     .subst( /\h+/, '=', :g );
+        my $post = '';
+        for %!post.kv -> $key, $val {
+            $post ~= '&' ~ $key ~ '=' ~ $val;
+        }
+        return $post;
 
         # say S:g[\h+] = '=' with ( S[\n] = '&' with ~%a );
     }

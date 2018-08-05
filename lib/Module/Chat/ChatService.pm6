@@ -7,8 +7,6 @@ need Module::Chat::ChatRepository;
 
 class ChatService
 {
-    has $!entity = Entity.new;
-
     method insert ($chatId, $chatTitle, $chatType)
     {
         my $chatRepository = ChatRepository.new;
@@ -25,16 +23,30 @@ class ChatService
     method getOneByChatId ($chatId)
     {
         my $chatRepository = ChatRepository.new;
+
         $chatRepository.select();
+
         $chatRepository.where('chat_id', $chatId);
-        my Entity $chatEntity = $chatRepository.getFirst();
 
-        if $chatEntity.hasErrors() {
-            $!entity.addError($chatEntity.getErrors());
-            return $!entity;
-        }
+        return $chatRepository.getFirst();
+    }
 
-        $!entity.setData($chatEntity.getData());
-        return $!entity;
+    method getTitle ($Id)
+    {
+        my $chatRepository = ChatRepository.new;
+
+        $chatRepository.select();
+
+        $chatRepository.where('ID', $Id);
+
+        my Entity $entity = $chatRepository.getFirst();
+
+        return $entity if $entity.hasErrors();
+
+        my %chat = $entity.getData();
+        my $title = %chat<chat_title> // '';
+
+        $entity.setData($title);
+        return $entity;
     }
 }

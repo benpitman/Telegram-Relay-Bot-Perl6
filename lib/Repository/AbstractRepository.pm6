@@ -17,18 +17,13 @@ role AbstractRepository
 
     submethod BUILD (:$!table)
     {
-        my %config = Service.getConfig();
+        my %config = Service.new.getConfig();
         my Str $database = %config<database>.gist;
 
         $!dbc = DBIish.connect(
             'SQLite',
             database => $database
         ) // die "Database '$database' not found.";
-    }
-
-    submethod END ()
-    {
-        $!dbc.dispose();
     }
 
     multi method insert (@rows where { @rows.first.WHAT === any(Pair, Hash) })
@@ -44,6 +39,7 @@ role AbstractRepository
         }
 
         $!entity.setData(@ids);
+        $!dbc.dispose();
         return $!entity;
     }
 
@@ -81,6 +77,7 @@ role AbstractRepository
 
             CATCH {
                 $!entity.addError("$_");
+                $!dbc.dispose();
                 return $!entity;
             }
         }
@@ -91,6 +88,7 @@ role AbstractRepository
         $!entity.setData($dbs.row());
 
         $dbs.finish();
+        $!dbc.dispose();
 
         return $!entity;
     }
@@ -196,20 +194,32 @@ role AbstractRepository
     method getAll ()
     {
         self.get();
-        return $!entity if $!entity.hasErrors();
+
+        if $!entity.hasErrors() {
+            $!dbc.dispose();
+            return $!entity;
+        }
 
         $!entity.setData($!dbe.allrows(:array-of-hash));
         $!dbe.finish();
+        $!dbc.dispose();
+
         return $!entity;
     }
 
     method getFirst ()
     {
         self.get();
-        return $!entity if $!entity.hasErrors();
+
+        if $!entity.hasErrors() {
+            $!dbc.dispose();
+            return $!entity;
+        }
 
         $!entity.setData($!dbe.row(:hash));
         $!dbe.finish();
+        $!dbc.dispose();
+
         return $!entity;
     }
 }

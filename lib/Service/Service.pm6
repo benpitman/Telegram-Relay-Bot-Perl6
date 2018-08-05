@@ -14,12 +14,14 @@ class Service
         $!configFilePath.IO.e or die "'$!configFilePath' file not found";
 
         try {
-            %!config = from-json($!configFilePath.IO.slurp);
+            from-json($!configFilePath.IO.slurp);
 
             CATCH {
                 die 'Config file is incorrectly formatted';
             }
         }
+
+        %!config = from-json($!configFilePath.IO.slurp);
     }
 
     method getConfig ()

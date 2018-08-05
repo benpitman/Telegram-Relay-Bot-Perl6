@@ -1,6 +1,7 @@
 {
     "api": {
         "updateId": 0,
+        "defaultTargetChatId": 0,
         "token": ""
     },
     "database": "",
