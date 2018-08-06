@@ -6,9 +6,10 @@ use JSON::Tiny;
 need Entity::Entity;
 need Service::Service;
 
-need Module::User::UserService;
 need Module::Chat::ChatService;
+need Module::Link::LinkService;
 need Module::Message::MessageService;
+need Module::User::UserService;
 
 class ApiDataService
 {
@@ -170,6 +171,7 @@ class ApiDataService
                 return $!entity if $!entity.hasErrors();
             }
 
+            # Save message
             my Entity $messageEntity = $messageService.insert(
                 %message<message_id>,
                 $userId,
@@ -187,15 +189,52 @@ class ApiDataService
                 return $!entity;
             }
 
-            if $messageEntity.hasData() {
-                @responses.push: %response;
+            # Parse commands
+            self!parseCommand() if %message<text>.starts-with('/');
+
+            # Get target chat ID
+            my $linkService = LinkService.new;
+            my Entity $linkEntity = $linkService.getTarget();
+
+            if $linkEntity.hasErrors() {
+                $!entity.addError($linkEntity.getErrors());
+                return $!entity;
             }
+
+            my $targetId;
+            if $linkEntity.hasData() {
+                $targetId = $linkEntity.getData();
+            }
+            else {
+                $targetId = $!service.getDefaultTargetChatId();
+            }
+
+            next if $targetId === -1;
+
+            $chatEntity = $chatService.getOneById($targetId);
+            return $chatEntity if $chatEntity.hasErrors();
+            %response<target> = $chatEntity.getData()<chat_id>;
+
+            @responses.push: %response;
         }
 
-        $!service.saveUpdateId($updateId);
+        $!service.setUpdateId($updateId);
         $!entity.setData(@responses);
 
         return $!entity;
+    }
+
+    method !parseCommand (Str $command)
+    {
+        given $command {
+            # when /:i ^ \/link/ {
+            #
+            # }
+            when /:i ^\/set\sfallback/ {
+                return;
+            }
+            default { return; }
+        }
     }
 
     method getIfExists ($service, $id)

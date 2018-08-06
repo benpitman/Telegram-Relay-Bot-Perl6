@@ -34,9 +34,21 @@ class Service
         return %!config<api><updateId>;
     }
 
-    method saveUpdateId (Int $updateId)
+    method setUpdateId (Int $updateId)
     {
         %!config<api><updateId> = $updateId;
+
+        spurt $!configFilePath, to-json(%!config, :pretty, :spacing(4)), :close;
+    }
+
+    method getDefaultTargetChatId ()
+    {
+        return %!config<api><defaultTargetChatId>;
+    }
+
+    method setDefaultTargetChatId (Int $defaultTargetChatId)
+    {
+        %!config<api><defaultTargetChatId> = $defaultTargetChatId;
 
         spurt $!configFilePath, to-json(%!config, :pretty, :spacing(4)), :close;
     }

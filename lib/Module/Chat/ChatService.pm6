@@ -20,6 +20,17 @@ class ChatService
         );
     }
 
+    method getOneById ($Id)
+    {
+        my $chatRepository = ChatRepository.new;
+
+        $chatRepository.select();
+
+        $chatRepository.where('ID', $Id);
+
+        return $chatRepository.getFirst();
+    }
+
     method getOneByChatId ($chatId)
     {
         my $chatRepository = ChatRepository.new;
@@ -33,13 +44,7 @@ class ChatService
 
     method getTitle ($Id)
     {
-        my $chatRepository = ChatRepository.new;
-
-        $chatRepository.select();
-
-        $chatRepository.where('ID', $Id);
-
-        my Entity $entity = $chatRepository.getFirst();
+        my Entity $entity = self.getOneById($Id);
 
         return $entity if $entity.hasErrors();
 

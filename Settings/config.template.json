@@ -1,8 +1,8 @@
 {
     "api": {
-        "updateId": 0,
-        "defaultTargetChatId": 0,
-        "token": ""
+        "defaultTargetChatId": -1,
+        "token": "",
+        "updateId": -1
     },
     "database": "",
     "webhook": {
