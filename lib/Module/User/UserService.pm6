@@ -57,7 +57,7 @@ class UserService
         }
 
         if ?$name && ?%user<user_username> {
-            $name ~= %user<user_username>;
+            $name ~= '(@' ~ %user<user_username> ~ ')';
         }
 
         $entity.setData($name);

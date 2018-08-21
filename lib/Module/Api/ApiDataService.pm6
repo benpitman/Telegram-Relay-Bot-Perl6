@@ -11,6 +11,9 @@ need Module::Link::LinkService;
 need Module::Message::MessageService;
 need Module::User::UserService;
 
+need Module::Message::Entity::MessageRequestEntity;
+need Module::Message::Entity::MessageResponseEntity;
+
 class ApiDataService
 {
     has $!entity = Entity.new;
@@ -53,7 +56,6 @@ class ApiDataService
     method parseUpdateResponse (Str $response)
     {
         self.validateResponse($response);
-
         return $!entity if $!entity.hasErrors() || !@!results.elems;
 
         my $updateId = $!service.getUpdateId();
@@ -190,30 +192,59 @@ class ApiDataService
             }
 
             # Parse commands
-            self!parseCommand() if %message<text>.starts-with('/');
+            my $messageIsCommand = False;
+            if %message<text>.starts-with('/') {
+                $messageIsCommand = True;
+                my Entity $messageEntity = $messageService.parseCommand(%message<text>, $userId);
 
-            # Get target chat ID
-            my $linkService = LinkService.new;
-            my Entity $linkEntity = $linkService.getTarget();
+                if $messageEntity.hasErrors() {
+                    $!entity.addError($messageEntity.getErrors());
+                    return $!entity;
+                }
 
-            if $linkEntity.hasErrors() {
-                $!entity.addError($linkEntity.getErrors());
-                return $!entity;
+                given $messageEntity {
+                    when MessageResponseEntity {
+                        %response<message> = $messageEntity.getMessage();
+                    }
+                    when MessageRequestEntity {
+                        %response<message> = $messageEntity.getData();
+                    }
+                    default {
+                        %response<message> = $messageEntity.getMessage();
+                    }
+                }
             }
 
-            my $targetId;
-            if $linkEntity.hasData() {
-                $targetId = $linkEntity.getData();
+            if $messageIsCommand {
+                $chatEntity = $chatService.getOneById($chatId);
+                return $chatEntity if $chatEntity.hasErrors();
+                %response<from> = 'Relay';
+                %response<target> = $chatEntity.getData()<chat_id>;
             }
             else {
-                $targetId = $!service.getDefaultTargetChatId();
+                # Get target chat ID
+                my $linkService = LinkService.new;
+                my Entity $linkEntity = $linkService.getTarget();
+
+                if $linkEntity.hasErrors() {
+                    $!entity.addError($linkEntity.getErrors());
+                    return $!entity;
+                }
+
+                my $targetId;
+                if $linkEntity.hasData() {
+                    $targetId = $linkEntity.getData();
+                }
+                else {
+                    $targetId = $!service.getDefaultTargetChatId();
+                }
+
+                next if $targetId === -1;
+
+                $chatEntity = $chatService.getOneById($targetId);
+                return $chatEntity if $chatEntity.hasErrors();
+                %response<target> = $chatEntity.getData()<chat_id>;
             }
-
-            next if $targetId === -1;
-
-            $chatEntity = $chatService.getOneById($targetId);
-            return $chatEntity if $chatEntity.hasErrors();
-            %response<target> = $chatEntity.getData()<chat_id>;
 
             @responses.push: %response;
         }
@@ -222,19 +253,6 @@ class ApiDataService
         $!entity.setData(@responses);
 
         return $!entity;
-    }
-
-    method !parseCommand (Str $command)
-    {
-        given $command {
-            # when /:i ^ \/link/ {
-            #
-            # }
-            when /:i ^\/set\sfallback/ {
-                return;
-            }
-            default { return; }
-        }
     }
 
     method getIfExists ($service, $id)

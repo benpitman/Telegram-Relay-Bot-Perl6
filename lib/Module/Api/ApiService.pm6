@@ -17,7 +17,6 @@ class ApiService
     # has $!apiDBService = ApiDBService.new;
     # has $!apiTextService = ApiTextService.new;
 
-    has $!defaultChatId = %!apiConfig<api><defaultTargetChatId>;
     has $!token = %!apiConfig<token>;
     has $!url = "https://api.telegram.org/bot" ~ $!token;
     has %!post = %();
@@ -47,6 +46,29 @@ class ApiService
         return $dataEntity;
     }
 
+    method getMe ()
+    {
+        # Get response
+        my $apiHttpService = ApiHttpService.new;
+        my Entity $httpEntity = $apiHttpService.post($!url ~ '/getMe');
+
+        return $httpEntity if $httpEntity.hasErrors();
+
+        my $response = $httpEntity.getData();
+
+        # Save response
+        my $responseService = ResponseService.new;
+        my Entity $responseEntity = $responseService.insert($response);
+
+        return $responseEntity if $responseEntity.hasErrors();
+
+        # Parse response
+        my $apiDataService = ApiDataService.new;
+        my Entity $dataEntity = $apiDataService.parseMeResponse($response);
+
+        return $dataEntity if $dataEntity.hasErrors();
+    }
+
     method getUpdates ()
     {
         # Get response
@@ -69,7 +91,7 @@ class ApiService
 
         return $dataEntity if $dataEntity.hasErrors();
 
-        if $dataEntity.hasData() && $!defaultChatId {
+        if $dataEntity.hasData() {
             self.forwardMessages($dataEntity.getData());
         }
 
@@ -85,7 +107,7 @@ class ApiService
             $text ~= "\nFrom: " ~ %response<from>;
             $text ~= "\n\n%response<message>" if ?%response<message>;
 
-            self.sendMessage($!defaultChatId, $text);
+            self.sendMessage(%response<target>, $text);
         }
     }
 
