@@ -53,6 +53,44 @@ class ApiDataService
         return $!entity;
     }
 
+    method parseMeResponse (Str $response)
+    {
+        self.validateResponse($response);
+        return $!entity if $!entity.hasErrors() || !@!results.elems;
+
+        my $userService = UserService.new;
+        my Entity $userEntity = $userService.getOneByUserId(@!results[0]<id>);
+
+        if $userEntity.hasErrors() {
+            $!entity.addError($userEntity.getErrors());
+            return $!entity;
+        }
+
+        my $botId;
+        if $userEntity.hasData() {
+            $botId = $userEntity.getData()<ID>;
+        }
+        else {
+            my $userEntity = $userService.insert(
+                @!results[0]<id>,
+                @!results[0]<is_bot>,
+                @!results[0]<first_name>    // 'NULL',
+                @!results[0]<last_name>     // 'NULL',
+                @!results[0]<username>      // 'NULL'
+            );
+
+            if $userEntity.hasErrors() {
+                $!entity.addError($userEntity.getErrors());
+                return $!entity;
+            }
+
+            $botId = $userEntity.getData()[0];
+        }
+
+        $!service.setBotId($botId);
+        return $!entity;
+    }
+
     method parseUpdateResponse (Str $response)
     {
         self.validateResponse($response);

@@ -38,7 +38,7 @@ class Service
     {
         %!config<api><updateId> = $updateId;
 
-        spurt $!configFilePath, to-json(%!config, :pretty, :spacing(4)), :close;
+        self!saveConfig();
     }
 
     method getDefaultTargetChatId ()
@@ -50,6 +50,23 @@ class Service
     {
         %!config<api><defaultTargetChatId> = $defaultTargetChatId;
 
+        self!saveConfig();
+    }
+
+    method getBotId ()
+    {
+        return %!config<api><botId>;
+    }
+
+    method setBotId (Cool $id = -1)
+    {
+        %!config<api><botId> = $id;
+
+        self!saveConfig();
+    }
+
+    method !saveConfig ()
+    {
         spurt $!configFilePath, to-json(%!config, :pretty, :spacing(4)), :close;
     }
 }

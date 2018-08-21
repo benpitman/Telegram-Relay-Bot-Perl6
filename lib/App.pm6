@@ -26,8 +26,12 @@ class App
 
         my $apiService = ApiService.new(apiConfig => %!config<api>);
 
-        $apiEntity = $apiService.getWebhookInfo();
+        $apiEntity = $apiService.updateMe();
+        self!parseErrors($apiEntity) if $apiEntity.hasErrors();
 
+        $apiService = ApiService.new(apiConfig => %!config<api>);
+
+        $apiEntity = $apiService.getWebhookInfo();
         self!parseErrors($apiEntity) if $apiEntity.hasErrors();
         my $webhookUrl = $apiEntity.getData()<webhook>;
 

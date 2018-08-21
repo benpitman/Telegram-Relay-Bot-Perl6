@@ -21,6 +21,29 @@ class ApiService
     has $!url = "https://api.telegram.org/bot" ~ $!token;
     has %!post = %();
 
+    method updateMe ()
+    {
+        # Get response
+        my $apiHttpService = ApiHttpService.new;
+        my Entity $httpEntity = $apiHttpService.post($!url ~ '/getMe');
+
+        return $httpEntity if $httpEntity.hasErrors();
+
+        my $response = $httpEntity.getData();
+
+        # Save response
+        my $responseService = ResponseService.new;
+        my Entity $responseEntity = $responseService.insert($response);
+
+        return $responseEntity if $responseEntity.hasErrors();
+
+        # Parse response
+        my $apiDataService = ApiDataService.new;
+        my Entity $dataEntity = $apiDataService.parseMeResponse($response);
+
+        return $dataEntity;
+    }
+
     method getWebhookInfo ()
     {
         # Get HTTP response
@@ -44,29 +67,6 @@ class ApiService
         return $dataEntity if $dataEntity.hasErrors();
 
         return $dataEntity;
-    }
-
-    method getMe ()
-    {
-        # Get response
-        my $apiHttpService = ApiHttpService.new;
-        my Entity $httpEntity = $apiHttpService.post($!url ~ '/getMe');
-
-        return $httpEntity if $httpEntity.hasErrors();
-
-        my $response = $httpEntity.getData();
-
-        # Save response
-        my $responseService = ResponseService.new;
-        my Entity $responseEntity = $responseService.insert($response);
-
-        return $responseEntity if $responseEntity.hasErrors();
-
-        # Parse response
-        my $apiDataService = ApiDataService.new;
-        my Entity $dataEntity = $apiDataService.parseMeResponse($response);
-
-        return $dataEntity if $dataEntity.hasErrors();
     }
 
     method getUpdates ()
