@@ -17,8 +17,7 @@ class ApiService
     # has $!apiDBService = ApiDBService.new;
     # has $!apiTextService = ApiTextService.new;
 
-    has $!token = %!apiConfig<token>;
-    has $!url = "https://api.telegram.org/bot" ~ $!token;
+    has $!url = "https://api.telegram.org/bot" ~ %!apiConfig<botToken>;
     has %!post = %();
 
     method updateMe ()
@@ -30,12 +29,6 @@ class ApiService
         return $httpEntity if $httpEntity.hasErrors();
 
         my $response = $httpEntity.getData();
-
-        # Save response
-        my $responseService = ResponseService.new;
-        my Entity $responseEntity = $responseService.insert($response);
-
-        return $responseEntity if $responseEntity.hasErrors();
 
         # Parse response
         my $apiDataService = ApiDataService.new;
@@ -53,12 +46,6 @@ class ApiService
         return $httpEntity if $httpEntity.hasErrors();
 
         my $response = $httpEntity.getData();
-
-        # Save response
-        my $responseService = ResponseService.new;
-        my Entity $responseEntity = $responseService.insert($response);
-
-        return $responseEntity if $responseEntity.hasErrors();
 
         # Parse response
         my $apiDataService = ApiDataService.new;
@@ -79,12 +66,6 @@ class ApiService
 
         my $response = $httpEntity.getData();
 
-        # Save response
-        my $responseService = ResponseService.new;
-        my Entity $responseEntity = $responseService.insert($response);
-
-        return $responseEntity if $responseEntity.hasErrors();
-
         # Parse response
         my $apiDataService = ApiDataService.new;
         my Entity $dataEntity = $apiDataService.parseUpdateResponse($response);
@@ -101,28 +82,42 @@ class ApiService
     method forwardMessages (@responses)
     {
         my $text;
+        my $entity = Entity.new;
         for @responses -> %response {
             $text = '';
             $text ~= "Chat: " ~ %response<chat> if ?%response<chat>;
             $text ~= "\nFrom: " ~ %response<from>;
             $text ~= "\n\n%response<message>" if ?%response<message>;
 
-            self.sendMessage(%response<target>, $text);
+            my Entity $httpEntity = self.sendMessage(
+                %response<target>,
+                $text,
+                reply_markup => %response<markup>
+            );
+
+            if $httpEntity.hasErrors() {
+                $entity.addError($httpEntity.getErrors());
+                return $entity;
+            }
+
+            say $httpEntity.getData();
         }
     }
 
-    method sendMessage (Cool $chat_id, Str $text)
+    method sendMessage (Cool $chat_id, Str $text, Cool $reply_to_message_id = '', Str $reply_markup = '')
     {
         %!post = %(
             :$chat_id,
             :$text,
+            :$reply_to_message_id,
+            :$reply_markup
         );
 
         # %!post.push: $_ for %addenda;
 
         my $post = self!stringifyPost();
         my $apiHttpService = ApiHttpService.new;
-        my Entity $httpEntity = $apiHttpService.post($!url ~ "/sendMessage", $post);
+        return $apiHttpService.post($!url ~ "/sendMessage", $post);
     }
 
     method !stringifyPost ()
@@ -132,6 +127,7 @@ class ApiService
         #     .subst( /\h+/, '=', :g );
         my $post = '';
         for %!post.kv -> $key, $val {
+            next if $val === '';
             $post ~= '&' ~ $key ~ '=' ~ $val;
         }
         return $post;

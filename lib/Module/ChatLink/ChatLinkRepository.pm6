@@ -4,10 +4,10 @@ use v6;
 
 need Repository::AbstractRepository;
 
-class LinkRepository does AbstractRepository
+class ChatLinkRepository does AbstractRepository
 {
     method new ()
     {
-        self.bless(table => 'links');
+        self.bless(table => 'chat_links');
     }
 }

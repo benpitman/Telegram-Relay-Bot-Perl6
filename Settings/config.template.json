@@ -1,15 +1,12 @@
 {
     "api": {
-        "updateId": -1,
+        "adminId": -1,
+        "updateId": 0,
+        "botId": -1,
         "defaultTargetChatId": -1,
-        "token": ""
+        "botToken": ""
     },
     "database": "",
-    "my": {
-        "id": -1,
-        "name": "",
-        "username": ""
-    },
     "webhook": {
         "port": 8443,
         "url": "localhost"

@@ -7,12 +7,16 @@ need Entity::Entity;
 need Service::Service;
 
 need Module::Chat::ChatService;
-need Module::Link::LinkService;
+need Module::ChatLink::ChatLinkService;
+need Module::Command::CommandService;
 need Module::Message::MessageService;
+need Module::MessageLink::MessageLinkService;
+need Module::Request::RequestService;
+need Module::Response::ResponseService;
 need Module::User::UserService;
 
-need Module::Message::Entity::MessageRequestEntity;
-need Module::Message::Entity::MessageResponseEntity;
+need Module::Command::Entity::CommandRequestEntity;
+need Module::Command::Entity::CommandResponseEntity;
 
 class ApiDataService
 {
@@ -22,6 +26,15 @@ class ApiDataService
 
     method validateResponse (Str $response)
     {
+        # Save response
+        my $responseService = ResponseService.new;
+        my Entity $responseEntity = $responseService.insert($response);
+
+        if $responseEntity.hasErrors() {
+            $!entity.addError($responseEntity.getErrors());
+            return $!entity;
+        }
+
         my %response = from-json($response);
 
         if !%response<ok> {
@@ -105,45 +118,17 @@ class ApiDataService
 
         for @!results -> %result {
 
-            next if %result<update_id> <= $updateId;
+            next if %result<update_id> le $updateId;
             # Overwrite every time so it's set to the last in the loop
             $updateId = %result<update_id>;
             my %message = %result<message>;
             my %response = %();
+            my $relayMessage = True;
 
             # Get user if it exists
             my %from = %message<from>;
-            my Entity $userEntity = $userService.getOneByUserId(%from<id>);
-
-            if $userEntity.hasErrors() {
-                $!entity.addError($userEntity.getErrors());
-                return $!entity;
-            }
-
-            my $userId;
-            if $userEntity.hasData() {
-                $userId = $userEntity.getData()<ID>;
-            }
-            else {
-                $userService = UserService.new;
-                $userEntity = $userService.insert(
-                    %from<id>,
-                    %from<is_bot>,
-                    %from<first_name>   // 'NULL',
-                    %from<last_name>    // 'NULL',
-                    %from<username>     // 'NULL'
-                );
-
-                if $userEntity.hasErrors() {
-                    $!entity.addError($userEntity.getErrors());
-                    return $!entity;
-                }
-
-                $userId = $userEntity.getData()[0];
-            }
-            $userEntity = $userService.getName($userId);
-            return $userEntity if $userEntity.hasErrors();
-            %response<from> = $userEntity.getData();
+            my $userId = self!addUser(%from);
+            return $!entity if $!entity.hasErrors();
 
             # Get chat if exists
             my %chat = %message<chat>;
@@ -174,24 +159,77 @@ class ApiDataService
             }
 
             $chatEntity = $chatService.getTitle($chatId);
-            return $chatEntity if $chatEntity.hasErrors();
+
+            if $chatEntity.hasErrors() {
+                $!entity.addError($chatEntity.getErrors());
+                return $!entity;
+            }
+
             %response<chat> = $chatEntity.getData();
+
+            $chatEntity = $chatService.getOneByChatId(%chat<id>);
+
+            if $chatEntity.hasErrors() {
+                $!entity.addError($chatEntity.getErrors());
+                return $!entity;
+            }
+
+            # If chat is private, never relay the message
+            if $chatEntity.getData()<chat_type> === 'private' {
+                $relayMessage = False;
+            }
 
             # Get reply to message if exists
             my $toMessageId;
+            my $toUserId;
+            my $requestResponse = False;
             if ?%message<reply_to_message> {
-                my Entity $messageEntity = $messageService.getOneByMessageId(
-                    %message<reply_to_message><message_id>,
-                    $toMessageId
-                );
+                my $toUserId = self!addUser(%message<reply_to_message><from>);
+                return $!entity if $!entity.hasErrors();
 
-                if $messageEntity.hasErrors() {
-                    $!entity.addError($messageEntity.getErrors());
-                    return $!entity;
+                if $toUserId eq $!service.getBotId() and
+                        $chatEntity.getData()<chat_type> === 'private' {
+                    # Check if there are any awaiting requests for that user
+                    my $requestService = RequestService.new;
+                    my Entity $requestEntity = $requestService.getPendingByIds($chatId, $userId);
+
+                    if $requestEntity.hasErrors() {
+                        $!entity.addError($requestEntity.getErrors());
+                        return $!entity;
+                    }
+
+                    if $requestEntity.hasData() {
+                        $relayMessage = False;
+
+                        my $commandService = CommandService.new;
+                        my Entity $commandEntity = $commandService.parseResponse(
+                            $requestEntity.getData()<request_type>,
+                            %message<text>,
+                            $userId
+                        );
+
+                        if $commandEntity.hasErrors() {
+                            $!entity.addError($commandEntity.getErrors());
+                            return $!entity;
+                        }
+
+                        %response<message> = $commandEntity.getMessage();
+                    }
                 }
+                else {
+                    my Entity $messageEntity = $messageService.getOneByMessageId(
+                        %message<reply_to_message><message_id>,
+                        $chatId
+                    );
 
-                if $messageEntity.hasData() {
-                    $toMessageId = $messageEntity.getData()<ID>;
+                    if $messageEntity.hasErrors() {
+                        $!entity.addError($messageEntity.getErrors());
+                        return $!entity;
+                    }
+
+                    if $messageEntity.hasData() {
+                        $toMessageId = $messageEntity.getData()<ID>;
+                    }
                 }
             }
 
@@ -214,8 +252,8 @@ class ApiDataService
             # Save message
             my Entity $messageEntity = $messageService.insert(
                 %message<message_id>,
-                $userId,
                 $chatId,
+                $userId,
                 $toMessageId                    // 'NULL',
                 $stickerId                      // 'NULL',
                 $documentId                     // 'NULL',
@@ -230,48 +268,104 @@ class ApiDataService
             }
 
             # Parse commands
-            my $messageIsCommand = False;
             if %message<text>.starts-with('/') {
-                $messageIsCommand = True;
-                my Entity $messageEntity = $messageService.parseCommand(%message<text>, $userId);
+                $relayMessage = False;
+                my $commandService = CommandService.new;
+                my Entity $commandEntity = $commandService.parseCommand(%message<text>, $userId);
 
-                if $messageEntity.hasErrors() {
-                    $!entity.addError($messageEntity.getErrors());
+                if $commandEntity.hasErrors() {
+                    $!entity.addError($commandEntity.getErrors());
                     return $!entity;
                 }
 
-                given $messageEntity {
-                    when MessageResponseEntity {
-                        %response<message> = $messageEntity.getMessage();
+                given $commandEntity {
+                    when CommandResponseEntity {
+                        %response<message> = $commandEntity.getMessage();
                     }
-                    when MessageRequestEntity {
-                        %response<message> = $messageEntity.getData();
+                    when CommandRequestEntity {
+                        %response<message> = $commandEntity.getMessage();
+                        %response<markup> = $commandEntity.getMarkup();
+
+                        my $requestService = RequestService.new;
+                        my Entity $requestEntity = $requestService.insert(
+                            to-json(%response),
+                            $commandEntity.getRequestType(),
+                            $chatId,
+                            $userId
+                        );
+
+                        if $requestEntity.hasErrors() {
+                            $!entity.addError($requestEntity.getErrors());
+                            return $!entity;
+                        }
                     }
                     default {
-                        %response<message> = $messageEntity.getMessage();
+                        %response<message> = $commandEntity.getMessage();
                     }
                 }
             }
 
-            if $messageIsCommand {
+            # Parse responses to queries
+            if $requestResponse {
+
+                # Check if there are any awaiting requests
+                my $requestService = RequestService.new;
+                my Entity $requestEntity = $requestService.getPendingByIds($chatId, $userId);
+
+                if $requestEntity.hasErrors() {
+                    $!entity.addError($requestEntity.getErrors());
+                    return $!entity;
+                }
+
+                # If there's no request waiting, ignore the reply
+                if $requestEntity.hasData() {
+                    $relayMessage = False;
+
+                    my $commandService = CommandService.new;
+                    my Entity $commandEntity = $commandService.parseResponse(
+                        $requestEntity.getData()<request_type>,
+                        %message<text>,
+                        $userId
+                    );
+
+                    if $commandEntity.hasErrors() {
+                        $!entity.addError($commandEntity.getErrors());
+                        return $!entity;
+                    }
+
+                    %response<message> = $commandEntity.getMessage();
+                }
+            }
+
+            if !$relayMessage {
+                $userEntity = $userService.getName($!service.getBotId());
+                return $userEntity if $userEntity.hasErrors();
+
+                %response<from> = $userEntity.getData();
+
                 $chatEntity = $chatService.getOneById($chatId);
                 return $chatEntity if $chatEntity.hasErrors();
-                %response<from> = 'Relay';
+
                 %response<target> = $chatEntity.getData()<chat_id>;
             }
             else {
-                # Get target chat ID
-                my $linkService = LinkService.new;
-                my Entity $linkEntity = $linkService.getTarget();
+                # Get user's name
+                $userEntity = $userService.getName($userId);
+                return $userEntity if $userEntity.hasErrors();
+                %response<from> = $userEntity.getData();
 
-                if $linkEntity.hasErrors() {
-                    $!entity.addError($linkEntity.getErrors());
+                # Get target chat ID
+                my $chatLinkService = ChatLinkService.new;
+                my Entity $chatLinkEntity = $chatLinkService.getTarget();
+
+                if $chatLinkEntity.hasErrors() {
+                    $!entity.addError($chatLinkEntity.getErrors());
                     return $!entity;
                 }
 
                 my $targetId;
-                if $linkEntity.hasData() {
-                    $targetId = $linkEntity.getData();
+                if $chatLinkEntity.hasData() {
+                    $targetId = $chatLinkEntity.getData();
                 }
                 else {
                     $targetId = $!service.getDefaultTargetChatId();
@@ -291,6 +385,57 @@ class ApiDataService
         $!entity.setData(@responses);
 
         return $!entity;
+    }
+
+    method saveReply (Str $response, Int $linkId, Cool $originMessageId)
+    {
+        self.validateResponse($response);
+        return $!entity if $!entity.hasErrors() || !@!results.elems;
+
+        my $messageLinkService = MessageLinkService.new;
+
+        my Entity $messageLinkEntity = $messageLinkService.insert(
+            %(
+                'message_link_link_id'              => $linkId,
+                'message_link_origin_message_id'    => $originMessageId,
+                'message_link_target_message_id'    => @!results[0]<message><message_id>
+            )
+        );
+
+        if $messageLinkEntity.hasErrors() {
+            $!entity.addError($messageLinkEntity.getErrors());
+            return $!entity;
+        }
+    }
+
+    method !addUser (%user)
+    {
+        my $userService = UserService.new;
+        my Entity $userEntity = $userService.getOneByUserId(%user<id>);
+
+        if $userEntity.hasErrors() {
+            $!entity.addError($userEntity.getErrors());
+            return -1;
+        }
+
+        if $userEntity.hasData() {
+            return $userEntity.getData()<user_id>;
+        }
+
+        $userEntity = $userService.insert(
+            %user<id>,
+            %user<is_bot>,
+            %user<first_name>   // 'NULL',
+            %user<last_name>    // 'NULL',
+            %user<username>     // 'NULL'
+        );
+
+        if $userEntity.hasErrors() {
+            $!entity.addError($userEntity.getErrors());
+            return -1;
+        }
+
+        return $userEntity.getData()[0];
     }
 
     method getIfExists ($service, $id)

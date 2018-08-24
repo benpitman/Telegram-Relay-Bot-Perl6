@@ -14,7 +14,7 @@ class ResponseService
         return $responseRepository.insert(
             %(
                 response_raw    => $response,
-                response_date   => DateTime.now
+                response_date   => DateTime.now()
             )
         );
     }

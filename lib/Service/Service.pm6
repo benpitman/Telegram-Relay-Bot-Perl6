@@ -41,6 +41,23 @@ class Service
         self!saveConfig();
     }
 
+    method adminExists ()
+    {
+        return %!config<api><adminId> gt -1;
+    }
+
+    method isAdmin (Int $userId)
+    {
+        return %!config<api><adminId> eq $userId;
+    }
+
+    method setAdmin (Int $userId)
+    {
+        %!config<api><adminId> = $userId;
+
+        self!saveConfig();
+    }
+
     method getDefaultTargetChatId ()
     {
         return %!config<api><defaultTargetChatId>;
@@ -63,6 +80,11 @@ class Service
         %!config<api><botId> = $id;
 
         self!saveConfig();
+    }
+
+    method getBotToken ()
+    {
+        return %!config<api><botToken>;
     }
 
     method !saveConfig ()
