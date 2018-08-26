@@ -12,7 +12,7 @@ class ChatLinkService
         return;
     }
 
-    method getTarget (Cool $chatId)
+    method getOneByOrigin (Cool $chatId)
     {
         my $chatLinkRepository = ChatLinkRepository.new;
 

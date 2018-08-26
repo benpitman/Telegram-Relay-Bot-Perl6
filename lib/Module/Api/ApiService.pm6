@@ -2,6 +2,8 @@
 
 use v6;
 
+need Service::Service;
+
 need Module::Api::ApiDataService;
 # need Module::Api::ApiDBService;
 need Module::Api::ApiHttpService;
@@ -60,7 +62,12 @@ class ApiService
     {
         # Get response
         my $apiHttpService = ApiHttpService.new;
-        my Entity $httpEntity = $apiHttpService.post($!url ~ '/getUpdates');
+        my $service = Service.new;
+
+        %!post = %(upadte_id => $service.getUpdateId() + 1);
+        my $post = self!stringifyPost();
+
+        my Entity $httpEntity = $apiHttpService.post($!url ~ '/getUpdates', $post);
 
         return $httpEntity if $httpEntity.hasErrors();
 
@@ -85,14 +92,15 @@ class ApiService
         my $entity = Entity.new;
         for @responses -> %response {
             $text = '';
-            $text ~= "Chat: " ~ %response<chat> if ?%response<chat>;
-            $text ~= "\nFrom: " ~ %response<from>;
-            $text ~= "\n\n%response<message>" if ?%response<message>;
+            $text ~= "Chat: " ~ %response<chat> ~ "\n" if ?%response<chat>;
+            $text ~= "From: " ~ %response<from>;
+            $text ~= "\n\n%response<text>" if ?%response<text>;
 
             my Entity $httpEntity = self.sendMessage(
-                %response<target>,
+                %response<targetChat>,
                 $text,
-                reply_markup => %response<markup>
+                %response<targetMessage>,
+                %response<markup>
             );
 
             if $httpEntity.hasErrors() {
@@ -100,11 +108,18 @@ class ApiService
                 return $entity;
             }
 
-            say $httpEntity.getData();
+            if %response<relay> {
+                my $apiDataService = ApiDataService.new;
+                my Entity $dataEntity = $apiDataService.saveRelay(
+                    $httpEntity.getData(),
+                    %response<messageId>,
+                    %response<chatLinkId>
+                );
+            }
         }
     }
 
-    method sendMessage (Cool $chat_id, Str $text, Cool $reply_to_message_id = '', Str $reply_markup = '')
+    method sendMessage (Cool $chat_id, Str $text, $reply_to_message_id = Nil, $reply_markup = '')
     {
         %!post = %(
             :$chat_id,
@@ -127,8 +142,7 @@ class ApiService
         #     .subst( /\h+/, '=', :g );
         my $post = '';
         for %!post.kv -> $key, $val {
-            next if $val === '';
-            $post ~= '&' ~ $key ~ '=' ~ $val;
+            $post ~= '&' ~ $key ~ '=' ~ $val if ?$val;
         }
         return $post;
 

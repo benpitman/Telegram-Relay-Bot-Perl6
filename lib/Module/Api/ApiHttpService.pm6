@@ -35,7 +35,6 @@ class ApiHttpService
             }
         }
 
-        # $!entity.setData('DB/test.txt'.IO.slurp);
         $!entity.setData($response);
         return $!entity;
     }

@@ -12,7 +12,7 @@ class MessageLinkService
         return;
     }
 
-    method getTarget (Cool $messageId)
+    method getOneByOrigin (Cool $messageId)
     {
         my $messageLinkRepository = MessageLinkRepository.new;
 

@@ -6,7 +6,7 @@ need Module::Request::RequestRepository;
 
 class RequestService
 {
-    method insert (Str $request, Str $requestType, Cool $chatId, Cool $userId)
+    method insert (Str $requestText, Str $requestType, Cool $chatId, Cool $userId)
     {
         my $requestRepository = RequestRepository.new;
 
@@ -15,7 +15,7 @@ class RequestService
                 request_chat_id     => $chatId,
                 request_user_id     => $userId,
                 request_response_id => 'NULL',
-                request_raw         => $request,
+                request_text        => $requestText,
                 request_type        => $requestType,
                 request_is_pending  => 1,
                 request_date        => DateTime.now()

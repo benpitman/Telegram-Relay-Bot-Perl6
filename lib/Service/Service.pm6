@@ -21,6 +21,11 @@ class Service
             }
         }
 
+        self.updateConfig();
+    }
+
+    method updateConfig ()
+    {
         %!config = from-json($!configFilePath.IO.slurp);
     }
 
@@ -36,8 +41,8 @@ class Service
 
     method setUpdateId (Int $updateId)
     {
+        self.updateConfig();
         %!config<api><updateId> = $updateId;
-
         self!saveConfig();
     }
 
@@ -53,8 +58,8 @@ class Service
 
     method setAdmin (Int $userId)
     {
+        self.updateConfig();
         %!config<api><adminId> = $userId;
-
         self!saveConfig();
     }
 
@@ -65,8 +70,8 @@ class Service
 
     method setDefaultTargetChatId (Int $defaultTargetChatId)
     {
+        self.updateConfig();
         %!config<api><defaultTargetChatId> = $defaultTargetChatId;
-
         self!saveConfig();
     }
 
@@ -77,8 +82,8 @@ class Service
 
     method setBotId (Cool $id = -1)
     {
+        self.updateConfig();
         %!config<api><botId> = $id;
-
         self!saveConfig();
     }
 

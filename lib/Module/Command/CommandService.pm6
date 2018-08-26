@@ -11,7 +11,7 @@ need Module::Command::Entity::CommandRequestEntity;
 
 class CommandService
 {
-    method parseCommand (Str $text, Cool $userId)
+    method parseCommand (Str $text, Cool $chatId, Cool $userId, Bool $isPrivate = False)
     {
         grammar COMMAND {
             token TOP { ^ '/' <command> [\s+]? [ <params> [ \s+ <params> ]* ]? }
@@ -64,19 +64,46 @@ class CommandService
 
                 given @params[0] {
                     when 'admin' {
+                        if !$isPrivate {
+                            $entity.messageHeader = 'This command can only be used in a private chat';
+                            return $entity;
+                        }
+
+                        my $service = Service.new;
+                        if $service.isAdmin($userId) {
+                            $entity.messageHeader = 'You are already the admin';
+                            return $entity;
+                        }
+
+                        if $service.adminExists() {
+                            $entity.messageHeader = 'The admin is already set';
+                            return $entity;
+                        }
+
                         my $commandRequestEntity = CommandRequestEntity.new;
 
                         $commandRequestEntity.messageHeader = 'Please provide my bot token to validate';
-                        my $markup = %(
+                        my %markup = %(
                             force_reply => True
                         );
-                        $commandRequestEntity.replyMarkup = to-json($markup);
+                        $commandRequestEntity.replyMarkup = to-json(%markup);
                         $commandRequestEntity.setRequestType('SET_ADMIN');
                         return $commandRequestEntity;
                     }
 
                     when 'default' {
-                        $entity.setData();
+                        my $service = Service.new;
+                        if !$service.isAdmin($userId) {
+                            $entity.messageHeader = 'You do not have permission to use this command';
+                            return $entity;
+                        }
+
+                        $service.setDefaultTargetChatId($chatId);
+                        my $commandResponseEntity = CommandResponseEntity.new;
+
+                        $commandResponseEntity.messageHeader = 'Default target chat set';
+                        return $commandResponseEntity;
+
                     }
 
                     when 'origin' {
@@ -116,7 +143,7 @@ class CommandService
                     return $entity;
                 }
 
-                if $text !== $service.getBotToken() {
+                if $text ne $service.getBotToken() {
                     $entity.messageHeader = 'Bot token is invalid';
                     return $entity;
                 }
