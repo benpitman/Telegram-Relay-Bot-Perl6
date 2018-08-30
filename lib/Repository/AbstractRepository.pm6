@@ -49,7 +49,7 @@ role AbstractRepository
         my @vals;
 
         for %row.kv -> $col, $val {
-            next if $val === 'NULL';
+            next if !$val.defined;
             @cols.push: "'$col'";
 
             given $val {

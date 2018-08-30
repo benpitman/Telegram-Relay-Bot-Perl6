@@ -119,7 +119,7 @@ class ApiService
         }
     }
 
-    method sendMessage (Cool $chat_id, Str $text, $reply_to_message_id = Nil, $reply_markup = '')
+    method sendMessage (Cool $chat_id, Str $text, $reply_to_message_id = Nil, $reply_markup = Nil)
     {
         %!post = %(
             :$chat_id,
@@ -142,7 +142,7 @@ class ApiService
         #     .subst( /\h+/, '=', :g );
         my $post = '';
         for %!post.kv -> $key, $val {
-            $post ~= '&' ~ $key ~ '=' ~ $val if ?$val;
+            $post ~= '&' ~ $key ~ '=' ~ $val if $val.defined;
         }
         return $post;
 

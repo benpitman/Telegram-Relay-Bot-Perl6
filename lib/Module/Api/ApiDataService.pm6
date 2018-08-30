@@ -87,9 +87,9 @@ class ApiDataService
             my $userEntity = $userService.insert(
                 @!results[0]<id>,
                 @!results[0]<is_bot>,
-                @!results[0]<first_name>    // 'NULL',
-                @!results[0]<last_name>     // 'NULL',
-                @!results[0]<username>      // 'NULL'
+                @!results[0]<first_name>    // Nil,
+                @!results[0]<last_name>     // Nil,
+                @!results[0]<username>      // Nil
             );
 
             if $userEntity.hasErrors() {
@@ -124,6 +124,8 @@ class ApiDataService
             my %message = %result<message>;
             my %response = %();
             my $relayMessage = True;
+            my $requestResponse = False;
+            my $silent = False;
 
             # Get user if it exists
             my %from = %message<from>;
@@ -146,7 +148,7 @@ class ApiDataService
             else {
                 my Entity $chatEntity = $chatService.insert(
                     %chat<id>,
-                    %chat<title> // 'NULL',
+                    %chat<title> // Nil,
                     %chat<type>
                 );
 
@@ -183,7 +185,7 @@ class ApiDataService
             # Get reply to message if exists
             my $toMessageId;
             my $toUserId;
-            my $requestResponse = False;
+            my $requestType;
             if ?%message<reply_to_message> {
                 my $toUserId = self!addUser(%message<reply_to_message><from>);
                 return $!entity if $!entity.hasErrors();
@@ -202,20 +204,11 @@ class ApiDataService
                     if $requestEntity.hasData() {
                         # If there is a request waiting, never relay
                         $relayMessage = False;
-
-                        my $commandService = CommandService.new;
-                        my Entity $commandEntity = $commandService.parseResponse(
-                            $requestEntity.getData()<request_type>,
-                            %message<text>,
-                            $userId
-                        );
-
-                        if $commandEntity.hasErrors() {
-                            $!entity.addError($commandEntity.getErrors());
-                            return $!entity;
-                        }
-
-                        %response<text> = $commandEntity.getMessage();
+                        $requestResponse = True;
+                        $requestType = $requestEntity.getData()<request_type>;
+                    }
+                    else {
+                        $silent = True;
                     }
                 }
                 else {
@@ -256,13 +249,13 @@ class ApiDataService
                 %message<message_id>,
                 $chatId,
                 $userId,
-                $toMessageId                    // 'NULL',
-                $stickerId                      // 'NULL',
-                $documentId                     // 'NULL',
-                %message<text>                  // 'NULL',
+                $toMessageId                    // Nil,
+                $stickerId                      // Nil,
+                $documentId                     // Nil,
+                %message<text>                  // Nil,
                 DateTime.new(%message<date>)
             );
-            # %response<text> = %message<text> // '';
+            %response<text> = %message<text> // '';
 
             if $messageEntity.hasErrors() {
                 $!entity.addError($messageEntity.getErrors());
@@ -315,36 +308,20 @@ class ApiDataService
                 }
             }
 
-            # Parse responses to queries
             if $requestResponse {
+                my $commandService = CommandService.new;
+                my Entity $commandEntity = $commandService.parseResponse(
+                    $requestType,
+                    %message<text>,
+                    $userId
+                );
 
-                # Check if there are any awaiting requests
-                my $requestService = RequestService.new;
-                my Entity $requestEntity = $requestService.getPendingByIds($chatId, $userId);
-
-                if $requestEntity.hasErrors() {
-                    $!entity.addError($requestEntity.getErrors());
+                if $commandEntity.hasErrors() {
+                    $!entity.addError($commandEntity.getErrors());
                     return $!entity;
                 }
 
-                # If there's no request waiting, ignore the reply
-                if $requestEntity.hasData() {
-                    $relayMessage = False;
-
-                    my $commandService = CommandService.new;
-                    my Entity $commandEntity = $commandService.parseResponse(
-                        $requestEntity.getData()<request_type>,
-                        %message<text>,
-                        $userId
-                    );
-
-                    if $commandEntity.hasErrors() {
-                        $!entity.addError($commandEntity.getErrors());
-                        return $!entity;
-                    }
-
-                    %response<text> = $commandEntity.getMessage();
-                }
+                %response<text> = $commandEntity.getMessage();
             }
 
             %response<relay> = $relayMessage;
@@ -423,7 +400,7 @@ class ApiDataService
         return $!entity;
     }
 
-    method saveRelay (Str $response, Cool $originMessageId, Cool $chatLinkId = 'NULL')
+    method saveRelay (Str $response, Cool $originMessageId, Cool $chatLinkId = Nil)
     {
         self.validateResponse($response);
         return $!entity if $!entity.hasErrors() || !@!results.elems;
@@ -461,9 +438,9 @@ class ApiDataService
         $userEntity = $userService.insert(
             %user<id>,
             %user<is_bot>,
-            %user<first_name>   // 'NULL',
-            %user<last_name>    // 'NULL',
-            %user<username>     // 'NULL'
+            %user<first_name>   // Nil,
+            %user<last_name>    // Nil,
+            %user<username>     // Nil
         );
 
         if $userEntity.hasErrors() {

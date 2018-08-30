@@ -14,7 +14,7 @@ class RequestService
             %(
                 request_chat_id     => $chatId,
                 request_user_id     => $userId,
-                request_response_id => 'NULL',
+                request_response_id => Nil,
                 request_text        => $requestText,
                 request_type        => $requestType,
                 request_is_pending  => 1,
