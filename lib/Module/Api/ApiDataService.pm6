@@ -308,6 +308,7 @@ class ApiDataService
                 }
             }
 
+            # Parse responses to queries
             if $requestResponse {
                 my $commandService = CommandService.new;
                 my Entity $commandEntity = $commandService.parseResponse(
