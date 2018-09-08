@@ -31,11 +31,13 @@ class Service
 
     method getConfig ()
     {
+        self.updateConfig();
         return %!config;
     }
 
     method getUpdateId ()
     {
+        self.updateConfig();
         return %!config<api><updateId>;
     }
 
@@ -48,11 +50,13 @@ class Service
 
     method adminExists ()
     {
+        self.updateConfig();
         return %!config<api><adminId> gt -1;
     }
 
     method isAdmin (Int $userId)
     {
+        self.updateConfig();
         return %!config<api><adminId> eq $userId;
     }
 
@@ -65,6 +69,7 @@ class Service
 
     method getDefaultTargetChatId ()
     {
+        self.updateConfig();
         return %!config<api><defaultTargetChatId>;
     }
 
@@ -77,6 +82,7 @@ class Service
 
     method getBotId ()
     {
+        self.updateConfig();
         return %!config<api><botId>;
     }
 
@@ -89,6 +95,7 @@ class Service
 
     method getBotToken ()
     {
+        self.updateConfig();
         return %!config<api><botToken>;
     }
 

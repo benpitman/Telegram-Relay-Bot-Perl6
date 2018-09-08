@@ -14,6 +14,7 @@ role AbstractRepository
     has $!dbe;
     has $!entity = Entity.new;
     has Str $!whereString;
+    has Str $!setString;
 
     submethod BUILD (:$!table)
     {
@@ -101,10 +102,10 @@ role AbstractRepository
 
     multi method select (*@cols where { $_.all ~~ Str })
     {
-        my Str $colString = @cols.join(', ');
+        my Str $selectString = @cols.join(', ');
 
         $!dbs = qq:to/STATEMENT/;
-        	SELECT $colString
+        	SELECT $selectString
         	FROM $!table
         STATEMENT
     }
@@ -117,6 +118,44 @@ role AbstractRepository
     multi method select ()
     {
         self.select(['*']);
+    }
+
+    multi method set (@setCols, @values where { @setCols.elems === @values.elems })
+    {
+        my Int $index = 0;
+
+        for @setCols Z @values -> [$col, $value] {
+            $!setString ~= ", " if $index = $++;
+
+            $!setString ~= "$col = ";
+
+            given $value {
+                when Int    { $!setString ~= "$value"; }
+                default     { $!setString ~= "'$value'"; }
+            }
+        }
+    }
+
+    multi method set (%sets)
+    {
+        my @keys = %sets.keys;
+        my @vals = %sets.values;
+        self.set(@keys, @vals);
+    }
+
+    multi method set (@values where { @values.first.WHAT === any(Pair, Hash) })
+    {
+        my $index = 0;
+
+        for @values -> %sets {
+            $!setString ~= ', ' if $index = $++;
+            self.set(%sets);
+        }
+    }
+
+    multi method set ($setCol, $value)
+    {
+        self.set([$setCol], [$value]);
     }
 
     multi method where (@whereCols, @operators, @matches where { @whereCols.elems === @matches.elems })
@@ -148,8 +187,10 @@ role AbstractRepository
 
     multi method where (@matches where { @matches.first.WHAT === any(Pair, Hash) })
     {
+        my Int $index = 0;
+
         for @matches -> %matches {
-            $!whereString ~= " OR " if $++;
+            $!whereString ~= " OR " if $index = $++;
             self.where(%matches);
         }
     }
@@ -217,6 +258,29 @@ role AbstractRepository
         }
 
         $!entity.setData($!dbe.row(:hash));
+        $!dbe.finish();
+        $!dbc.dispose();
+
+        return $!entity;
+    }
+
+    method save ()
+    {
+        $!dbs = qq:to/STATEMENT/;
+            UPDATE $!table
+        	SET $!setString
+            WHERE $!whereString
+        STATEMENT
+
+        try {
+            $!dbe = $!dbc.prepare($!dbs);
+            $!dbe.execute();
+
+            CATCH {
+                $!entity.addError("$_");
+            }
+        }
+
         $!dbe.finish();
         $!dbc.dispose();
 

@@ -113,6 +113,10 @@ class CommandService
                     when 'target' {
                         $entity.setData();
                     }
+
+                    default {
+                        $entity.messageHeader = "Unknown parameter to command '/set'";
+                    }
                 }
 
                 return $entity;

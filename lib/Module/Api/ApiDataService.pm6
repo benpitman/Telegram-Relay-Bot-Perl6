@@ -1,7 +1,7 @@
 #!/usr/bin/perl6
 
 use v6;
-use JSON::Tiny;
+use JSON::Fast;
 
 need Entity::Entity;
 need Service::Service;
@@ -104,9 +104,9 @@ class ApiDataService
         return $!entity;
     }
 
-    method parseUpdateResponse (Str $response)
+    method parseUpdateResponse (Str $updateResponse)
     {
-        self.validateResponse($response);
+        self.validateResponse($updateResponse);
         return $!entity if $!entity.hasErrors() || !@!results.elems;
 
         my $updateId = $!service.getUpdateId();
@@ -122,7 +122,7 @@ class ApiDataService
             # Overwrite every time so it's set to the last in the loop
             $updateId = %result<update_id>;
             my %message = %result<message>;
-            my %response = %();
+            my %response = %(pretext => True);
             my $relayMessage = True;
             my $requestResponse = False;
             my $silent = False;
@@ -208,7 +208,8 @@ class ApiDataService
                         $requestType = $requestEntity.getData()<request_type>;
                     }
                     else {
-                        $silent = True;
+                        $silent = True; #TODO ?
+                        next;
                     }
                 }
                 else {
@@ -322,6 +323,8 @@ class ApiDataService
                     return $!entity;
                 }
 
+                my $requestService = RequestService.new;
+                $requestService.fulfilPending($chatId, $userId, $requestType);
                 %response<text> = $commandEntity.getMessage();
             }
 
@@ -330,11 +333,10 @@ class ApiDataService
                 my Entity $userEntity = $userService.getName($!service.getBotId());
                 return $userEntity if $userEntity.hasErrors();
 
-                %response<from> = $userEntity.getData();
-
                 $chatEntity = $chatService.getOneById($chatId);
                 return $chatEntity if $chatEntity.hasErrors();
 
+                %response<pretext> = False;
                 %response<targetChat> = $chatEntity.getData()<chat_id>;
             }
             else {

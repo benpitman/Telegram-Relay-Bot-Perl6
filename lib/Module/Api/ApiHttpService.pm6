@@ -1,7 +1,7 @@
 #!/usr/bin/perl6
 
 use v6;
-use JSON::Tiny;
+use JSON::Fast;
 use LibCurl::HTTP; # requires libcurl4-openssl-dev
 
 need Entity::Entity;

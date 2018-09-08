@@ -92,8 +92,11 @@ class ApiService
         my $entity = Entity.new;
         for @responses -> %response {
             $text = '';
-            $text ~= "Chat: " ~ %response<chat> ~ "\n" if ?%response<chat>;
-            $text ~= "From: " ~ %response<from>;
+
+            if %response<pretext> {
+                $text ~= "Chat: " ~ %response<chat> ~ "\n" if ?%response<chat>;
+                $text ~= "From: " ~ %response<from>;
+            }
             $text ~= "\n\n%response<text>" if ?%response<text>;
 
             my Entity $httpEntity = self.sendMessage(
