@@ -103,7 +103,6 @@ class CommandService
 
                         $commandResponseEntity.messageHeader = 'Default target chat set';
                         return $commandResponseEntity;
-
                     }
 
                     when 'origin' {

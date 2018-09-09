@@ -9,6 +9,7 @@ need Entity::Entity;
 role AbstractRepository
 {
     has $.table is rw;
+    has Str $!database;
     has $!dbc;
     has Str $!dbs;
     has $!dbe;
@@ -18,20 +19,26 @@ role AbstractRepository
 
     submethod BUILD (:$!table)
     {
-        my %config = Service.new.getConfig();
-        my Str $database = %config<database>.gist;
+        $!database = Service.new.getDatabase();
+        self!connect();
+    }
 
+    method !connect ()
+    {
         $!dbc = DBIish.connect(
             'SQLite',
-            database => $database
-        ) // die "Database '$database' not found.";
+            database => $!database
+        ) // die "Database '$!database' not found.";
     }
 
     multi method insert (@rows where { @rows.first.WHAT === any(Pair, Hash) })
     {
         my @ids;
+        my Int $index = 0;
 
         for @rows -> %row {
+            self!connect() if $index = $++;
+
             self.insert(%row);
 
             last if $!entity.hasErrors();

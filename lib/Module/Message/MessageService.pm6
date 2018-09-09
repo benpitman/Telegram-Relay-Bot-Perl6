@@ -23,6 +23,17 @@ class MessageService
         );
     }
 
+    method getOneById ($id)
+    {
+        my $messageRepository = MessageRepository.new;
+
+        $messageRepository.select();
+
+        $messageRepository.where('ID', $id);
+
+        return $messageRepository.getFirst();
+    }
+
     method getOneByMessageId ($messageId, $chatId)
     {
         my $messageRepository = MessageRepository.new;

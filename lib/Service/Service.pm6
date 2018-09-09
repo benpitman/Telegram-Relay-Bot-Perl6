@@ -35,6 +35,12 @@ class Service
         return %!config;
     }
 
+    method getDatabase ()
+    {
+        self.updateConfig();
+        return %!config<database>.gist;
+    }
+
     method getUpdateId ()
     {
         self.updateConfig();

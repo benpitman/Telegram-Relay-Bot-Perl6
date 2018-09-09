@@ -20,13 +20,13 @@ class ChatService
         );
     }
 
-    method getOneById ($Id)
+    method getOneById ($id)
     {
         my $chatRepository = ChatRepository.new;
 
         $chatRepository.select();
 
-        $chatRepository.where('ID', $Id);
+        $chatRepository.where('ID', $id);
 
         return $chatRepository.getFirst();
     }

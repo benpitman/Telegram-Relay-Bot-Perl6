@@ -64,7 +64,7 @@ class ApiService
         my $apiHttpService = ApiHttpService.new;
         my $service = Service.new;
 
-        %!post = %(upadte_id => $service.getUpdateId() + 1);
+        %!post = %(offset => $service.getUpdateId() + 1);
         my $post = self!stringifyPost();
 
         my Entity $httpEntity = $apiHttpService.post($!url ~ '/getUpdates', $post);
@@ -80,7 +80,9 @@ class ApiService
         return $dataEntity if $dataEntity.hasErrors();
 
         if $dataEntity.hasData() {
-            self.forwardMessages($dataEntity.getData());
+            my Entity $forwardEntity = self.forwardMessages($dataEntity.getData());
+
+            return $forwardEntity if $forwardEntity.hasErrors();
         }
 
         return $dataEntity;
@@ -90,6 +92,7 @@ class ApiService
     {
         my $text;
         my $entity = Entity.new;
+
         for @responses -> %response {
             $text = '';
 
@@ -116,10 +119,17 @@ class ApiService
                 my Entity $dataEntity = $apiDataService.saveRelay(
                     $httpEntity.getData(),
                     %response<messageId>,
-                    %response<chatLinkId>
+                    %response<chatId>
                 );
+
+                if $dataEntity.hasErrors() {
+                    $entity.addError($dataEntity.getErrors());
+                    return $entity;
+                }
             }
         }
+
+        return $entity;
     }
 
     method sendMessage (Cool $chat_id, Str $text, $reply_to_message_id = Nil, $reply_markup = Nil)

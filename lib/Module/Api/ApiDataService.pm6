@@ -177,16 +177,25 @@ class ApiDataService
             }
             my $chatType = $chatEntity.getData()<chat_type>;
 
-            # If chat is private, never relay the message
-            if $chatType === 'private' {
-                $relayMessage = False;
-            }
-
             # Get reply to message if exists
             my $toMessageId;
             my $toUserId;
             my $requestType;
             if ?%message<reply_to_message> {
+                my Entity $messageEntity = $messageService.getOneByMessageId(
+                    %message<reply_to_message><message_id>,
+                    $chatId
+                );
+
+                if $messageEntity.hasErrors() {
+                    $!entity.addError($messageEntity.getErrors());
+                    return $!entity;
+                }
+
+                if $messageEntity.hasData() {
+                    $toMessageId = $messageEntity.getData()<ID>;
+                }
+
                 my $toUserId = self!addUser(%message<reply_to_message><from>);
                 return $!entity if $!entity.hasErrors();
 
@@ -207,26 +216,16 @@ class ApiDataService
                         $requestResponse = True;
                         $requestType = $requestEntity.getData()<request_type>;
                     }
-                    else {
-                        $silent = True; #TODO ?
-                        next;
+                    # TODO private chat could be default, allow relay if replying to user message
+                    elsif $chatId ne $!service.getDefaultTargetChatId() {
+                        $relayMessage = False;
+                        $silent = True;
                     }
                 }
-                else {
-                    my Entity $messageEntity = $messageService.getOneByMessageId(
-                        %message<reply_to_message><message_id>,
-                        $chatId
-                    );
-
-                    if $messageEntity.hasErrors() {
-                        $!entity.addError($messageEntity.getErrors());
-                        return $!entity;
-                    }
-
-                    if $messageEntity.hasData() {
-                        $toMessageId = $messageEntity.getData()<ID>;
-                    }
-                }
+            }
+            elsif $chatType === 'private' {
+                $relayMessage = False;
+                $silent = True;
             }
 
             # Get sticker if exists
@@ -330,6 +329,8 @@ class ApiDataService
 
             %response<relay> = $relayMessage;
             if !$relayMessage {
+                next if $silent; #FIXME 400 bad request sending an empty message
+
                 my Entity $userEntity = $userService.getName($!service.getBotId());
                 return $userEntity if $userEntity.hasErrors();
 
@@ -345,53 +346,75 @@ class ApiDataService
                 return $userEntity if $userEntity.hasErrors();
                 %response<from> = $userEntity.getData();
 
-                # Get target chat ID
-                my $chatLinkService = ChatLinkService.new;
-                my Entity $chatLinkEntity = $chatLinkService.getOneByOrigin($chatId);
-
-                if $chatLinkEntity.hasErrors() {
-                    $!entity.addError($chatLinkEntity.getErrors());
-                    return $!entity;
-                }
-
                 my $targetChatId;
-                if $chatLinkEntity.hasData() {
-                    $targetChatId = $chatLinkEntity.getData()<chat_link_target_chat_id>;
-                    %response<chatLinkId> = $chatLinkEntity.getData()<ID>;
-                }
-                else {
-                    $targetChatId = $!service.getDefaultTargetChatId();
-                }
-
-                next if $targetChatId === -1;
-
-                $chatEntity = $chatService.getOneById($targetChatId);
-                return $chatEntity if $chatEntity.hasErrors();
-                %response<targetChat> = $chatEntity.getData()<chat_id>;
+                my $chatLinkId;
 
                 # Get target message ID
-                my $messageLinkService = MessageLinkService.new;
-                my Entity $messageLinkEntity = $messageLinkService.getOneByOrigin($messageId);
+                if ?%message<reply_to_message> {
+                    if ?$toMessageId {
+                        my $messageLinkService = MessageLinkService.new;
+                        my Entity $messageLinkEntity = $messageLinkService.getMessageLink($toMessageId);
 
-                if $messageLinkEntity.hasErrors() {
-                    $!entity.addError($messageLinkEntity.getErrors());
+                        if $messageLinkEntity.hasErrors() {
+                            $!entity.addError($messageLinkEntity.getErrors());
+                            return $!entity;
+                        }
+
+                        if $messageLinkEntity.hasData() {
+                            $messageEntity = $messageService.getOneById($messageLinkEntity.getData());
+
+                            if $messageEntity.hasErrors() {
+                                $!entity.addError($messageEntity.getErrors());
+                                return $!entity;
+                            }
+
+                            %response<targetMessage> = $messageEntity.getData()<message_id>;
+
+                            $targetChatId = $messageEntity.getData<message_chat_id>
+                        }
+                    }
+                }
+                else {
+                    # Get target chat ID
+                    my $chatLinkService = ChatLinkService.new;
+                    my Entity $chatLinkEntity = $chatLinkService.getOneByOrigin($chatId);
+
+                    if $chatLinkEntity.hasErrors() {
+                        $!entity.addError($chatLinkEntity.getErrors());
+                        return $!entity;
+                    }
+
+                    if $chatLinkEntity.hasData() {
+                        $targetChatId = $chatLinkEntity.getData()<chat_link_target_chat_id>;
+                        $chatLinkId = $chatLinkEntity.getData()<ID>;
+                    }
+                    elsif $chatId ne $!service.getDefaultTargetChatId() {
+                        $targetChatId = $!service.getDefaultTargetChatId();
+
+                        next if $targetChatId === -1;
+
+                        $chatLinkEntity = $chatLinkService.insert(
+                            $chatId,
+                            $targetChatId
+                        );
+
+                        if $chatLinkEntity.hasErrors() {
+                            $!entity.addError($chatLinkEntity.getErrors());
+                            return $!entity;
+                        }
+
+                        $chatLinkId = $chatLinkEntity.getData()[0];
+                    }
+                }
+                %response<chatId> = $targetChatId;
+
+                $chatEntity = $chatService.getOneById($targetChatId);
+                if $chatEntity.hasErrors() {
+                    $!entity.addError($chatEntity.getErrors());
                     return $!entity;
                 }
 
-                my $targetMessageId;
-                if $messageLinkEntity.hasData() {
-                    $targetMessageId = $messageLinkEntity.getData()<message_link_target_message_id>;
-                    %response<messageLinkId> = $messageLinkEntity.getData()<ID>;
-                }
-                else {
-                    $targetMessageId = $!service.getDefaultTargetMessageId();
-                }
-
-                next if $targetMessageId === -1;
-
-                $messageEntity = $messageService.getOneById($targetMessageId);
-                return $messageEntity if $messageEntity.hasErrors();
-                %response<targetMessage> = $messageEntity.getData()<message_id>;
+                %response<targetChat> = $chatEntity.getData()<chat_id>;
             }
 
             @responses.push: %response;
@@ -403,25 +426,42 @@ class ApiDataService
         return $!entity;
     }
 
-    method saveRelay (Str $response, Cool $originMessageId, Cool $chatLinkId = Nil)
+    method saveRelay (Str $response, Cool $originMessageId, Cool $chatId)
     {
         self.validateResponse($response);
         return $!entity if $!entity.hasErrors() || !@!results.elems;
 
+        my $messageService = MessageService.new;
+
+        my Entity $messageEntity = $messageService.insert(
+            @!results[0]<message_id>,
+            $chatId,
+            $!service.getBotId(),
+            Nil,
+            Nil,
+            Nil,
+            @!results[0]<text>,
+            DateTime.new(@!results[0]<date>)
+        );
+
+        if $messageEntity.hasErrors() {
+            $!entity.addError($messageEntity.getErrors());
+            return $!entity;
+        }
+
         my $messageLinkService = MessageLinkService.new;
 
         my Entity $messageLinkEntity = $messageLinkService.insert(
-            %(
-                'message_link_origin_message_id'    => $originMessageId,
-                'message_link_target_message_id'    => @!results[0]<message><message_id>,
-                'message_link_chat_link_id'         => $chatLinkId
-            )
+            $originMessageId,
+            $messageEntity.getData()[0]
         );
 
         if $messageLinkEntity.hasErrors() {
             $!entity.addError($messageLinkEntity.getErrors());
             return $!entity;
         }
+
+        return $messageLinkEntity; #TODO why?
     }
 
     method !addUser (%user)

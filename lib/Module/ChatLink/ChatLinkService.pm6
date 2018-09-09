@@ -7,9 +7,16 @@ need Module::ChatLink::ChatLinkRepository;
 
 class ChatLinkService
 {
-    method insert ()
+    method insert (Cool $originChatId, Cool $targetChatId)
     {
-        return;
+        my $chatLinkRepository = ChatLinkRepository.new;
+
+        return $chatLinkRepository.insert(
+            %(
+                'chat_link_origin_chat_id'    => $originChatId,
+                'chat_link_target_chat_id'    => $targetChatId
+            )
+        );
     }
 
     method getOneByOrigin (Cool $chatId)
