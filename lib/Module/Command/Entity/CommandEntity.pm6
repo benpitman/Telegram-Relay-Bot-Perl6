@@ -34,7 +34,7 @@ class CommandEntity is Entity
         return @!requestTypes.join.contains($requestType);
     }
 
-    method sendMessage ()
+    method hasMessage ()
     {
         if ?$!messageHeader or ?$!messageBody {
             return True;
