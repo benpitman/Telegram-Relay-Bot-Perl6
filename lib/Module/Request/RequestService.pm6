@@ -6,14 +6,14 @@ need Module::Request::RequestRepository;
 
 class RequestService
 {
-    method insert (Str $requestText, Str $requestType, Cool $chatId, Cool $userId)
+    method insert (Cool $chatId, Cool $userId, Str $requestText, Str $requestType)
     {
-        my $requestEntity = self.getByRequestType($chatId, $userId, $requestType);
+        my $requestEntity = self.getByRequestType($userId, $requestType);
 
         return $requestEntity if $requestEntity.hasErrors();
 
         if $requestEntity.hasData() {
-            $requestEntity = self.fulfilPending($chatId, $userId, $requestType);
+            $requestEntity = self.fulfilPending($userId, $requestType);
 
             return $requestEntity if $requestEntity.hasErrors();
         }
@@ -24,8 +24,7 @@ class RequestService
             %(
                 request_chat_id     => $chatId,
                 request_user_id     => $userId,
-                request_response_id => Nil,
-                request_text        => $requestText,
+                request_text        => $requestText.trim,
                 request_type        => $requestType,
                 request_is_pending  => 1,
                 request_date        => DateTime.now()
@@ -33,43 +32,45 @@ class RequestService
         );
     }
 
-    method getByRequestType (Cool $chatId, Cool $userId, Str $requestType)
+    method getByRequestType (Cool $userId, Str $requestType)
     {
         my $requestRepository = RequestRepository.new;
 
         $requestRepository.select();
 
         $requestRepository.where(
-            ['request_chat_id', 'request_user_id', 'request_type', 'request_is_pending'],
-            [$chatId, $userId, $requestType, 1]
+            ['request_user_id', 'request_type', 'request_is_pending'],
+            [$userId, $requestType, 1]
         );
 
         return $requestRepository.getFirst();
     }
 
-    method fulfilPending (Cool $chatId, Cool $userId, $requestType)
+    #TODO cancel latest pending
+
+    method fulfilPending (Cool $userId, $requestType)
     {
         my $requestRepository = RequestRepository.new;
 
         $requestRepository.set('request_is_pending', 0);
 
         $requestRepository.where(
-            ['request_chat_id', 'request_user_id', 'request_type', 'request_is_pending'],
-            [$chatId, $userId, $requestType, 1]
+            ['request_user_id', 'request_type', 'request_is_pending'],
+            [$userId, $requestType, 1]
         );
 
         return $requestRepository.save();
     }
 
-    method getPendingByIds (Cool $chatId, Cool $userId)
+    method getPendingByUserId (Cool $userId)
     {
         my $requestRepository = RequestRepository.new;
 
         $requestRepository.select();
 
         $requestRepository.where(
-            ['request_chat_id', 'request_user_id', 'request_is_pending'],
-            [$chatId, $userId, 1]
+            ['request_user_id', 'request_is_pending'],
+            [$userId, 1]
         );
 
         return $requestRepository.getFirst();

@@ -11,7 +11,8 @@ class CommandEntity is Entity
     has $.messageFooter is rw = '';
     has $!requestType = '';
     has @!requestTypes = (
-        'SET_ADMIN'
+        'SET_ADMIN',
+        'SET_LINK'
     );
 
     method getRequestTypes ()

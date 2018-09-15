@@ -64,6 +64,9 @@ role AbstractRepository
                 when Int {
                     @vals.push: $val;
                 }
+                when Str {
+                    @vals.push: "'$val.subst(/\'/, "''", :g)'";
+                }
                 default {
                     @vals.push: "'$val'";
                 }

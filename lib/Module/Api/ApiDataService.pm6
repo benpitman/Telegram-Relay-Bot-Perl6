@@ -109,23 +109,23 @@ class ApiDataService
         self.validateResponse($updateResponse);
         return $!entity if $!entity.hasErrors() || !@!results.elems;
 
-        my $updateId = $!service.getUpdateId();
-        my @responses = [];
-        my $userService = UserService.new;
-        my $chatService = ChatService.new;
-        my $messageService = MessageService.new;
+        my $updateId        = $!service.getUpdateId();
+        my @responses       = [];
+        my $userService     = UserService.new;
+        my $chatService     = ChatService.new;
+        my $messageService  = MessageService.new;
         # my $fileService = FileService.new; #TODO for stickers, documents and other files
 
         for @!results -> %result {
 
             next if %result<update_id> le $updateId;
             # Overwrite every time so it's set to the last in the loop
-            $updateId = %result<update_id>;
-            my %message = %result<message>;
-            my %response = %(pretext => True);
-            my $relayMessage = True;
+            $updateId           = %result<update_id>;
+            my %message         = %result<message>;
+            my %response        = %(pretext => True);
+            my $relayMessage    = True;
             my $requestResponse = False;
-            my $silent = False;
+            my $silent          = False;
 
             # Get user if it exists
             my %from = %message<from>;
@@ -160,14 +160,16 @@ class ApiDataService
                 $chatId = $chatEntity.getData()[0];
             }
 
-            $chatEntity = $chatService.getTitle($chatId);
+            if !$!service.isAdmin($userId) {
+                $chatEntity = $chatService.getTitle($chatId);
 
-            if $chatEntity.hasErrors() {
-                $!entity.addError($chatEntity.getErrors());
-                return $!entity;
+                if $chatEntity.hasErrors() {
+                    $!entity.addError($chatEntity.getErrors());
+                    return $!entity;
+                }
+
+                %response<chat> = $chatEntity.getData();
             }
-
-            %response<chat> = $chatEntity.getData();
 
             $chatEntity = $chatService.getOneByChatId(%chat<id>);
 
@@ -177,10 +179,26 @@ class ApiDataService
             }
             my $chatType = $chatEntity.getData()<chat_type>;
 
+            # Check if there are any awaiting requests for that user
+            my %request;
+            my $requestService = RequestService.new;
+            my Entity $requestEntity = $requestService.getPendingByUserId($userId);
+
+            if $requestEntity.hasErrors() {
+                $!entity.addError($requestEntity.getErrors());
+                return $!entity;
+            }
+
+            if $requestEntity.hasData() {
+                # If there is a request waiting, never relay
+                $relayMessage = False;
+                $requestResponse = True;
+                %request = $requestEntity.getData();
+            }
+
             # Get reply to message if exists
             my $toMessageId;
             my $toUserId;
-            my $requestType;
             if ?%message<reply_to_message> {
                 my Entity $messageEntity = $messageService.getOneByMessageId(
                     %message<reply_to_message><message_id>,
@@ -199,33 +217,14 @@ class ApiDataService
                 my $toUserId = self!addUser(%message<reply_to_message><from>);
                 return $!entity if $!entity.hasErrors();
 
-                if $toUserId eq $!service.getBotId() and $chatType === 'private' {
-
-                    # Check if there are any awaiting requests for that user
-                    my $requestService = RequestService.new;
-                    my Entity $requestEntity = $requestService.getPendingByIds($chatId, $userId);
-
-                    if $requestEntity.hasErrors() {
-                        $!entity.addError($requestEntity.getErrors());
-                        return $!entity;
-                    }
-
-                    if $requestEntity.hasData() {
-                        # If there is a request waiting, never relay
-                        $relayMessage = False;
-                        $requestResponse = True;
-                        $requestType = $requestEntity.getData()<request_type>;
-                    }
-                    # TODO private chat could be default, allow relay if replying to user message
-                    elsif $chatId ne $!service.getDefaultTargetChatId() {
-                        $relayMessage = False;
-                        $silent = True;
-                    }
+                if $toUserId eq $!service.getBotId() and $chatType === 'private'
+                        and $chatId ne $!service.getDefaultTargetChatId() {
+                    $relayMessage = False;
+                    $silent = True;
                 }
             }
-            elsif $chatType === 'private' {
+            elsif $chatType === 'private' or $chatId === $!service.getDefaultTargetChatId() {
                 $relayMessage = False;
-                $silent = True;
             }
 
             # Get sticker if exists
@@ -256,6 +255,7 @@ class ApiDataService
                 DateTime.new(%message<date>)
             );
             %response<text> = %message<text> // '';
+            #TODO if text is null, check for 'notifications'
 
             if $messageEntity.hasErrors() {
                 $!entity.addError($messageEntity.getErrors());
@@ -265,12 +265,12 @@ class ApiDataService
             %response<messageId> = $messageId;
 
             # Parse commands
-            if %message<text>.starts-with('/') {
+            if %response<text>.starts-with('/') {
                 # If message is a command, never relay
                 $relayMessage = False;
                 my $commandService = CommandService.new;
                 my Entity $commandEntity = $commandService.parseCommand(
-                    %message<text>,
+                    %response<text>,
                     $chatId,
                     $userId,
                     $chatType === 'private'
@@ -287,14 +287,14 @@ class ApiDataService
                     }
                     when CommandRequestEntity {
                         %response<text> = $commandEntity.getMessage();
-                        %response<markup> = $commandEntity.getMarkup();
+                        %response<markup> = $commandEntity.getMarkup() if $commandEntity.hasMarkup();
 
                         my $requestService = RequestService.new;
                         my Entity $requestEntity = $requestService.insert(
-                            %response<text>,
-                            $commandEntity.getRequestType(),
                             $chatId,
-                            $userId
+                            $userId,
+                            %response<text>,
+                            $commandEntity.getRequestType()
                         );
 
                         if $requestEntity.hasErrors() {
@@ -312,9 +312,10 @@ class ApiDataService
             if $requestResponse {
                 my $commandService = CommandService.new;
                 my Entity $commandEntity = $commandService.parseResponse(
-                    $requestType,
-                    %message<text>,
-                    $userId
+                    %request,
+                    %response<text>,
+                    $userId,
+                    $chatId
                 );
 
                 if $commandEntity.hasErrors() {
@@ -323,7 +324,7 @@ class ApiDataService
                 }
 
                 my $requestService = RequestService.new;
-                $requestService.fulfilPending($chatId, $userId, $requestType);
+                $requestService.fulfilPending($userId, %request<request_type>);
                 %response<text> = $commandEntity.getMessage();
             }
 
@@ -370,14 +371,14 @@ class ApiDataService
 
                             %response<targetMessage> = $messageEntity.getData()<message_id>;
 
-                            $targetChatId = $messageEntity.getData<message_chat_id>
+                            $targetChatId = $messageEntity.getData<message_chat_id>;
                         }
                     }
                 }
                 else {
                     # Get target chat ID
                     my $chatLinkService = ChatLinkService.new;
-                    my Entity $chatLinkEntity = $chatLinkService.getOneByOrigin($chatId);
+                    my Entity $chatLinkEntity = $chatLinkService.getChatLink($chatId);
 
                     if $chatLinkEntity.hasErrors() {
                         $!entity.addError($chatLinkEntity.getErrors());
@@ -385,8 +386,7 @@ class ApiDataService
                     }
 
                     if $chatLinkEntity.hasData() {
-                        $targetChatId = $chatLinkEntity.getData()<chat_link_target_chat_id>;
-                        $chatLinkId = $chatLinkEntity.getData()<ID>;
+                        $targetChatId = $chatLinkEntity.getData();
                     }
                     elsif $chatId ne $!service.getDefaultTargetChatId() {
                         $targetChatId = $!service.getDefaultTargetChatId();
@@ -406,6 +406,9 @@ class ApiDataService
                         $chatLinkId = $chatLinkEntity.getData()[0];
                     }
                 }
+
+                next if !$targetChatId;
+
                 %response<chatId> = $targetChatId;
 
                 $chatEntity = $chatService.getOneById($targetChatId);

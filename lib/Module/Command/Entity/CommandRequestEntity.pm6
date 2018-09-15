@@ -8,6 +8,11 @@ class CommandRequestEntity is CommandEntity
 {
     has $.replyMarkup is rw = '{}';
 
+    method hasMarkup ()
+    {
+        return ?$!replyMarkup;
+    }
+
     method getMarkup ()
     {
         return $!replyMarkup;
