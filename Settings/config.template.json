@@ -9,6 +9,6 @@
     "database": "",
     "webhook": {
         "port": 8443,
-        "url": "localhost"
+        "host": ""
     }
 }

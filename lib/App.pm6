@@ -24,19 +24,18 @@ class App
 
         my Entity $apiEntity;
 
-        my $apiService = ApiService.new(apiConfig => %!config<api>);
+        my $apiService = ApiService.new();
 
         $apiEntity = $apiService.updateMe();
         self!parseErrors($apiEntity) if $apiEntity.hasErrors();
 
-        $apiService = ApiService.new(apiConfig => %!config<api>);
-
         $apiEntity = $apiService.getWebhookInfo();
         self!parseErrors($apiEntity) if $apiEntity.hasErrors();
+
         my $webhookUrl = $apiEntity.getData()<webhook>;
 
-        if ?%!config<webhook><url> {
-            if %!config<webhook><url> === $webhookUrl {
+        if ?%!config<webhook><host> {
+            if %!config<webhook><host> === $webhookUrl {
                 # self!listener();
                 return;
             }
@@ -45,7 +44,6 @@ class App
             }
         }
         elsif $apiEntity.getData()<pending> > 0 {
-            $apiService = ApiService.new(apiConfig => %!config<api>);
             $apiEntity = $apiService.getUpdates();
 
             self!parseErrors($apiEntity) if $apiEntity.hasErrors();

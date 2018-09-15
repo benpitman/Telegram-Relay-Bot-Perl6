@@ -24,6 +24,11 @@ class Service
         self.updateConfig();
     }
 
+    method getPostUrl ()
+    {
+        return "https://api.telegram.org/bot" ~ %!config<api><botToken>;
+    }
+
     method updateConfig ()
     {
         %!config = from-json($!configFilePath.IO.slurp);
