@@ -91,6 +91,12 @@ class Service
         self!saveConfig();
     }
 
+    method isDefaultTargetChatId (Cool $chatId)
+    {
+        self.updateConfig();
+        return %!config<api><defaultTargetChatId> eq $chatId;
+    }
+
     method getBotId ()
     {
         self.updateConfig();

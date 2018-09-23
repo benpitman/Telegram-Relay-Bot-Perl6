@@ -9,31 +9,7 @@ class CommandEntity is Entity
     has $.messageHeader is rw = '';
     has $.messageBody is rw = '';
     has $.messageFooter is rw = '';
-    has $!requestType = '';
-    has @!requestTypes = (
-        'SET_ADMIN',
-        'SET_LINK'
-    );
-
-    method getRequestTypes ()
-    {
-        return @!requestTypes;
-    }
-
-    method getRequestType ()
-    {
-        return $!requestType;
-    }
-
-    method setRequestType (Str $requestType)
-    {
-        $!requestType = $requestType if self.isARequestType($requestType);
-    }
-
-    method isARequestType (Str $requestType)
-    {
-        return @!requestTypes.join.contains($requestType);
-    }
+    has $!commandSuccess = False;
 
     method hasMessage ()
     {
@@ -51,5 +27,15 @@ class CommandEntity is Entity
             $!messageBody
             $!messageFooter
         MESSAGE
+    }
+
+    method setCommandSuccess (Bool $success = True)
+    {
+        $!commandSuccess = $success;
+    }
+
+    method getCommandSuccess ()
+    {
+        return ?$!commandSuccess;
     }
 }

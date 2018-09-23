@@ -125,6 +125,7 @@ class ApiDataService
             my %response        = %(pretext => True);
             my $relayMessage    = True;
             my $requestResponse = False;
+            my $responseType    = '';
             my $silent          = False;
 
             # Get user if it exists
@@ -217,19 +218,19 @@ class ApiDataService
                 my $toUserId = self!addUser(%message<reply_to_message><from>);
                 return $!entity if $!entity.hasErrors();
 
-                if $toUserId eq $!service.getBotId() and $chatType === 'private'
-                        and $chatId ne $!service.getDefaultTargetChatId() {
+                if $toUserId eq $!service.getBotId() and
+                        ($chatType === 'private' or !$!service.isDefaultTargetChatId($chatId)) {
                     $relayMessage = False;
                     $silent = True;
                 }
             }
-            elsif $chatType === 'private' or $chatId === $!service.getDefaultTargetChatId() {
+            elsif $chatType === 'private' or $!service.isDefaultTargetChatId($chatId) {
                 $relayMessage = False;
             }
 
             # Get sticker if exists
             my $stickerId;
-            if %message<sticker> {
+            if ?%message<sticker> {
                 # $stickerId = self.getIfExists($messageService, %message<sticker><file_id>);
 
                 return $!entity if $!entity.hasErrors();
@@ -237,7 +238,7 @@ class ApiDataService
 
             # Get document if exists
             my $documentId;
-            if %message<document> {
+            if ?%message<document> {
                 # $documentId = self.getIfExists($messageService, %message<sticker><file_id>);
 
                 return $!entity if $!entity.hasErrors();
@@ -255,7 +256,7 @@ class ApiDataService
                 DateTime.new(%message<date>)
             );
             %response<text> = %message<text> // '';
-            #TODO if text is null, check for 'notifications'
+            #TODO if text is null, check for 'notifications' (user leaving, for example)
 
             if $messageEntity.hasErrors() {
                 $!entity.addError($messageEntity.getErrors());
@@ -281,9 +282,21 @@ class ApiDataService
                     return $!entity;
                 }
 
+                if !$commandEntity.getCommandSuccess() {
+                    $requestResponse = False;
+                }
+
                 given $commandEntity {
                     when CommandResponseEntity {
                         %response<text> = $commandEntity.getMessage();
+
+                        if $commandEntity.hasAReponseType() {
+                            $responseType = $commandEntity.getResponseType();
+
+                            if !%request or $responseType ne %request<request_type> {
+                                $requestResponse = False;
+                            }
+                        }
                     }
                     when CommandRequestEntity {
                         %response<text> = $commandEntity.getMessage();
@@ -313,9 +326,10 @@ class ApiDataService
                 my $commandService = CommandService.new;
                 my Entity $commandEntity = $commandService.parseResponse(
                     %request,
-                    %response<text>,
-                    $userId,
-                    $chatId
+                    $responseType,
+                    %message<text> // %response<text> // '',
+                    $chatId,
+                    $userId
                 );
 
                 if $commandEntity.hasErrors() {
@@ -323,8 +337,11 @@ class ApiDataService
                     return $!entity;
                 }
 
-                my $requestService = RequestService.new;
-                $requestService.fulfilPending($userId, %request<request_type>);
+                if $commandEntity.getCommandSuccess() {
+                    my $requestService = RequestService.new;
+                    $requestService.fulfilPending($userId, %request<request_type>);
+                }
+
                 %response<text> = $commandEntity.getMessage();
             }
 
@@ -388,7 +405,7 @@ class ApiDataService
                     if $chatLinkEntity.hasData() {
                         $targetChatId = $chatLinkEntity.getData();
                     }
-                    elsif $chatId ne $!service.getDefaultTargetChatId() {
+                    elsif !$!service.isDefaultTargetChatId($chatId) {
                         $targetChatId = $!service.getDefaultTargetChatId();
 
                         next if $targetChatId === -1;
@@ -440,9 +457,9 @@ class ApiDataService
             @!results[0]<message_id>,
             $chatId,
             $!service.getBotId(),
-            Nil,
-            Nil,
-            Nil,
+            Nil, # To message
+            Nil, # Sticker
+            Nil, # Document
             @!results[0]<text>,
             DateTime.new(@!results[0]<date>)
         );

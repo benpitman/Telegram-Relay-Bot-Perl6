@@ -10,22 +10,24 @@ need Module::Command::Entity::CommandResponseEntity;
 need Module::Command::Entity::CommandRequestEntity;
 
 need Module::ChatLink::ChatLinkService;
+need Module::Request::RequestService;
 
 class CommandService
 {
+    grammar COMMAND {
+        token TOP { ^ '/' <command> [\s+]? [ <params> [ \s+ <params> ]* ]? }
+
+        proto token command {*}
+        token command:sym<start>    { <sym> }
+        token command:sym<get>      { <sym> }
+        token command:sym<set>      { <sym> }
+        token command:sym<cancel>   { <sym> }
+
+        token params { \w+ }
+    }
+
     method parseCommand (Str $text, Cool $chatId, Cool $userId, Bool $isPrivate = False)
     {
-        grammar COMMAND {
-            token TOP { ^ '/' <command> [\s+]? [ <params> [ \s+ <params> ]* ]? }
-
-            proto token command {*}
-            token command:sym<start>    { <sym> }
-            token command:sym<get>      { <sym> }
-            token command:sym<set>      { <sym> }
-
-            token params { \w+ }
-        }
-
         my $entity = CommandEntity.new;
         my $commandString = COMMAND.parse($text.lc);
 
@@ -39,6 +41,7 @@ class CommandService
 
         given $command {
             when 'start' {
+                $entity.setCommandSuccess();
                 return $entity;
             }
 
@@ -53,14 +56,15 @@ class CommandService
                         my $commandResponseEntity = CommandResponseEntity.new;
 
                         $commandResponseEntity.messageHeader = 'Your user ID is: ' ~ $userId;
+                        $commandResponseEntity.setCommandSuccess();
+
                         return $commandResponseEntity;
                     }
+
                     default {
                         $entity.messageHeader = "Unknown parameter to command '/get'";
                     }
                 }
-
-                return $entity;
             }
 
             when 'set' {
@@ -69,6 +73,8 @@ class CommandService
                     return $entity;
                 }
 
+                my $service = Service.new;
+
                 given @params[0] {
                     when 'admin' {
                         if !$isPrivate {
@@ -76,7 +82,6 @@ class CommandService
                             return $entity;
                         }
 
-                        my $service = Service.new;
                         if $service.isAdmin($userId) {
                             $entity.messageHeader = 'You are already the admin';
                             return $entity;
@@ -90,24 +95,20 @@ class CommandService
                         my $commandRequestEntity = CommandRequestEntity.new;
 
                         $commandRequestEntity.messageHeader = 'Please provide my bot token to validate';
-                        my %markup = %(
-                            force_reply => True
-                        );
-                        $commandRequestEntity.replyMarkup = to-json(%markup);
+                        $commandRequestEntity.markupForceReply();
                         $commandRequestEntity.setRequestType('SET_ADMIN');
+                        $commandRequestEntity.setCommandSuccess();
 
                         return $commandRequestEntity;
                     }
 
                     when 'default' {
-                        my $service = Service.new;
-
                         if !$service.isAdmin($userId) {
                             $entity.messageHeader = 'You do not have permission to use this command';
                             return $entity;
                         }
 
-                        if $chatId eq $service.getDefaultTargetChatId() {
+                        if $service.isDefaultTargetChatId($chatId) {
                             $entity.messageHeader = 'This chat is already the default';
                             return $entity;
                         }
@@ -116,18 +117,23 @@ class CommandService
                         my $commandResponseEntity = CommandResponseEntity.new;
 
                         $commandResponseEntity.messageHeader = 'Default target chat set';
+                        $commandResponseEntity.setCommandSuccess();
+
                         return $commandResponseEntity;
                     }
 
                     when 'origin' {
-                        my $service = Service.new;
+                        if $isPrivate {
+                            $entity.messageHeader = 'You cannot use this command in a public chat';
+                            return $entity;
+                        }
 
                         if !$service.isAdmin($userId) {
                             $entity.messageHeader = 'You do not have permission to use this command';
                             return $entity;
                         }
 
-                        if $chatId eq $service.getDefaultTargetChatId() {
+                        if $service.isDefaultTargetChatId($chatId) {
                             $entity.messageHeader = 'This chat is the default, it cannot be an origin';
                             return $entity;
                         }
@@ -136,41 +142,72 @@ class CommandService
 
                         $commandRequestEntity.messageHeader = 'Origin chat set';
                         $commandRequestEntity.messageBody = "Now run '/set target' in a new target chat";
+                        $commandRequestEntity.messageFooter = "Or '/cancel' to cancel this request";
                         $commandRequestEntity.setRequestType('SET_LINK');
+                        $commandRequestEntity.setCommandSuccess();
 
                         return $commandRequestEntity;
                     }
 
                     when 'target' {
-                        my $service = Service.new;
-
                         if !$service.isAdmin($userId) {
                             $entity.messageHeader = 'You do not have permission to use this command';
                             return $entity;
                         }
 
-                        if $chatId eq $service.getDefaultTargetChatId() {
+                        if $service.isDefaultTargetChatId($chatId) {
                             $entity.messageHeader = 'This chat is the default';
                             return $entity;
                         }
+
+                        my $requestService = RequestService.new;
+
+                        my $requestEntity = $requestService.getByRequestType($userId, 'SET_LINK');
+
+                        if $requestEntity.hasErrors() {
+                            $entity.addError($requestEntity.getErrors());
+                            return $entity;
+                        }
+
+                        if !$requestEntity.hasData() {
+                            $entity.messageHeader = "Command '/set origin' has not been run";
+                            return $entity;
+                        }
+
+                        my $commandResponseEntity = CommandResponseEntity.new;
+
+                        $commandResponseEntity.setResponseType('SET_LINK');
+                        $commandResponseEntity.setCommandSuccess();
+
+                        return $commandResponseEntity;
                     }
 
                     default {
                         $entity.messageHeader = "Unknown parameter to command '/set'";
                     }
                 }
+            }
 
-                return $entity;
+            when 'cancel' {
+                my $commandResponseEntity = CommandResponseEntity.new;
+
+                $commandResponseEntity.messageHeader = ''; #TODO
+                $commandResponseEntity.setCommandSuccess();
+
+                return $commandResponseEntity;
             }
         }
+
+        return $entity;
     }
 
-    method parseResponse (%request, Str $text, Cool $userId, Cool $chatId)
+    method parseResponse (%request, Str $responseType, Str $text, Cool $chatId, Cool $userId)
     {
         my $entity = CommandEntity.new;
+        my $commandRequestEntity = CommandRequestEntity.new;
         my $requestType = %request<request_type>;
 
-        if !$entity.isARequestType($requestType) {
+        if !$commandRequestEntity.isARequestType($requestType) {
             $entity.addError("Unknown request type '$requestType'. Internal Error");
             return $entity;
         }
@@ -196,9 +233,15 @@ class CommandService
 
                 $service.setAdmin($userId);
                 $entity.messageHeader = 'Admin set';
+                $entity.setCommandSuccess();
             }
 
             when 'SET_LINK' {
+                if $responseType ne $requestType {
+                    $entity.messageHeader = "'/set target' or '/cancel' must be run to continue functionality";
+                    return $entity;
+                }
+
                 if $chatId eq %request<request_chat_id> {
                     $entity.messageHeader = 'Origin chat cannot be the same as the target chat';
                     return $entity;
@@ -217,6 +260,7 @@ class CommandService
                 }
 
                 $entity.messageHeader = 'Chat link set';
+                $entity.setCommandSuccess();
             }
         }
 

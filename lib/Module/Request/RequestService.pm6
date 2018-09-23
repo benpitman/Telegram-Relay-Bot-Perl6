@@ -46,9 +46,25 @@ class RequestService
         return $requestRepository.getFirst();
     }
 
-    #TODO cancel latest pending
+    method cancelLastRequest (Cool $userId)
+    {
+        my $requestEntity = self.getPendingByUserId($userId);
 
-    method fulfilPending (Cool $userId, $requestType)
+        return $requestEntity if $requestEntity.hasErrors();
+
+        if $requestEntity.hasData() {
+            my $requestRepository = RequestRepository.new;
+            my $requestId = $requestEntity.getData()<ID>;
+
+            $requestRepository.set('request_is_pending', 0);
+
+            $requestRepository.where('request_id', $requestId);
+
+            return $requestRepository.save();
+        }
+    }
+
+    method fulfilPending (Cool $userId, Str $requestType)
     {
         my $requestRepository = RequestRepository.new;
 

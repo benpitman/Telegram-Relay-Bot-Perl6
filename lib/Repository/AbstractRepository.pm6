@@ -6,6 +6,8 @@ use DBIish;
 need Service::Service;
 need Entity::Entity;
 
+#TODO add orderBy
+
 role AbstractRepository
 {
     has $.table is rw;
