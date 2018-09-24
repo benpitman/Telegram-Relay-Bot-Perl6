@@ -22,6 +22,7 @@ class CommandService
         token command:sym<get>      { <sym> }
         token command:sym<set>      { <sym> }
         token command:sym<cancel>   { <sym> }
+        token command:sym<unset>    { <sym> }
 
         token params { \w+ }
     }
@@ -138,11 +139,26 @@ class CommandService
                             return $entity;
                         }
 
+                        my $chatLinkService = ChatLinkService.new;
+
+                        my $chatLinkEntity = $chatLinkService.getChatLink($chatId);
+
+                        if $chatLinkEntity.hasErrors() {
+                            $entity.addError($chatLinkEntity.getErrors());
+                            return $entity;
+                        }
+
+                        if $chatLinkEntity.hasData() {
+                            $entity.messageHeader = 'This chat is already linked to another chat';
+                            $entity.messageBody = "Run '/unset link' if you would like to disable this chat link";
+                            return $entity;
+                        }
+
                         my $commandRequestEntity = CommandRequestEntity.new;
 
                         $commandRequestEntity.messageHeader = 'Origin chat set';
                         $commandRequestEntity.messageBody = "Now run '/set target' in a new target chat";
-                        $commandRequestEntity.messageFooter = "Or '/cancel' to cancel this request";
+                        $commandRequestEntity.messageFooter = "Or '/cancel' to cancel the last request";
                         $commandRequestEntity.setRequestType('SET_LINK');
                         $commandRequestEntity.setCommandSuccess();
 
@@ -174,6 +190,21 @@ class CommandService
                             return $entity;
                         }
 
+                        my $chatLinkService = ChatLinkService.new;
+
+                        my $chatLinkEntity = $chatLinkService.getChatLink($chatId);
+
+                        if $chatLinkEntity.hasErrors() {
+                            $entity.addError($chatLinkEntity.getErrors());
+                            return $entity;
+                        }
+
+                        if $chatLinkEntity.hasData() {
+                            $entity.messageHeader = 'This chat is already linked to another chat';
+                            $entity.messageBody = "Run '/unset link' if you would like to disable this chat link";
+                            return $entity;
+                        }
+
                         my $commandResponseEntity = CommandResponseEntity.new;
 
                         $commandResponseEntity.setResponseType('SET_LINK');
@@ -189,12 +220,47 @@ class CommandService
             }
 
             when 'cancel' {
+                my $requestService = RequestService.new;
                 my $commandResponseEntity = CommandResponseEntity.new;
 
-                $commandResponseEntity.messageHeader = ''; #TODO
+                my $requestEntity = $requestService.cancelLastRequest($userId);
+
+                if $requestEntity.hasErrors() {
+                    $entity.addError($requestEntity.getErrors());
+                    return $entity;
+                }
+
+                $commandResponseEntity.messageHeader = 'Last request cancelled';
                 $commandResponseEntity.setCommandSuccess();
 
                 return $commandResponseEntity;
+            }
+
+            when 'unset' {
+                if @params.elems == 0 {
+                    $entity.messageHeader = "Command '/unset' requires at least one parameter";
+                    return $entity;
+                }
+
+                given @params[0] {
+                    when 'default' {
+                        my $commandResponseEntity = CommandResponseEntity.new;
+
+                        $commandResponseEntity.messageHeader = '';
+                        $commandResponseEntity.setCommandSuccess();
+
+                        return $commandResponseEntity;
+                    }
+
+                    when 'link' {
+                        my $commandResponseEntity = CommandResponseEntity.new;
+
+                        $commandResponseEntity.messageHeader = '';
+                        $commandResponseEntity.setCommandSuccess();
+
+                        return $commandResponseEntity;
+                    }
+                }
             }
         }
 
